@@ -1,8 +1,9 @@
 library(shiny)
 library(simmer)
 library(simmer.plot)
+library(bslib)
 
-ui <- fluidPage(
+ui <- fluidPage( theme = bs_theme(version = 4,bootswatch = "flatly"),
     
     # Application title
     titlePanel("First Shiny Simulation"),
