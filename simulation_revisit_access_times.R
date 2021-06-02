@@ -31,17 +31,17 @@ patient_normal <- trajectory("patients normal path") %>%
       release("outpatient_clinic") %>%
       
       ## add consultation activity with doc
-      set_attribute("access_time", function() {now(hospital)}) %>% # setting attribute to compute access time
+      set_attribute("oc_end", function() {now(hospital)}) %>% # setting attribute to compute access time
       log_( function () {
-            paste("Waiting for or from:", get_attribute(hospital, "access_time"))
+            paste("Waiting for or from:", get_attribute(hospital, "oc_end"))
             
       }) %>%
       seize("operating_room",amount = 1) %>%
-      set_attribute("access_time", function() {
-            now(hospital) - get_attribute(hospital, "access_time") # access time is the time between release from oc and entering or 
+      set_attribute("access_time_or", function() {
+            now(hospital) - get_attribute(hospital, "oc_end") # access time is the time between release from oc and entering or 
       }) %>%
       log_( function () {
-            paste("Waiting for or to :", now(hospital) ) 
+            paste("Waiting for Operating room ended at :", now(hospital) ) 
             
       }) %>%
       timeout(serv_or) %>%
@@ -50,11 +50,32 @@ patient_normal <- trajectory("patients normal path") %>%
       ##add a planning activity
       seize("ward") %>%
       timeout(serv_wd) %>%
-      release("ward")
+      release("ward") 
+
+patient_revisit <- trajectory("patients revisit path") %>%
+      
+      set_attribute("ward_end", function() {now(hospital)}) %>% # setting attribute to compute access time
+      log_( function () {
+            paste("Waiting for new app. at home from:", get_attribute(hospital, "ward_end")) 
+            }) %>%
+      
+      seize("home") %>% 
+      timeout(10) %>% 
+      release("home") %>% 
+      set_attribute("access_time_home", function() {
+            now(hospital) - get_attribute(hospital, "ward_end") # access time is the time between release from oc and entering or 
+      }) %>%
+            log_( function () {
+                  paste("Going to the outpatient clinic at :", now(hospital) ) 
+                  }) %>%
+      
+      join(patient_normal)
+      
+      
 
 patient <- trajectory("patients path with revisit") %>%
-      join(patient_normal) #%>%
-# branch(CHECK_REVISIT, continue = FALSE, patient_normal)
+      join(patient_normal) %>%
+      branch(CHECK_REVISIT, continue = FALSE, patient_revisit)
 
       ### FILL THE HOSPITAL ENVIROMENT WITH RESOURCES AND GENERATORS ###
 
@@ -62,11 +83,14 @@ hospital  %>%
       add_resource("outpatient_clinic",cap_oc) %>%
       add_resource("operating_room",cap_or) %>%
       add_resource("ward", cap_wd) %>%
+      add_resource("home", capacity = Inf) %>% 
       add_generator("patient", patient, arrival_rate, mon = 2) 
 
       ### RUN THE SIMULATION ###
+#Always seperate the initialisation of the enviroment and the run method because
+#of scoping rules
 
-#for replications use:
+#for replications use:j
 #hospital <- lapply(1:100,function(){ INSERT SIMULATION ENVIOREMENT})
 
 hospital %>% run(until = 100)
@@ -89,9 +113,15 @@ plot(get_mon_arrivals(hospital), metric = "flow_time")
 ### HOW TO COMPUTE 
 
 ##Get the attributes data frame
-get_mon_attributes()
+hospital %>% get_mon_attributes()
 #This frame will have the intermediate calculation of the time as well so: 
 
 ##Subset the frame such that only the entries where the access times != time are stored
-subset(get_mon_attributes(hospital), time != value)
+subset(get_mon_attributes(hospital), key == "access_time_or" )
 
+#subset(get_mon_attributes(hospital), time != value)
+
+
+##Get access time for home or for operating room
+
+#subset(get_mon_attributes(hospital), (time != value) & key == "access_time_or")
