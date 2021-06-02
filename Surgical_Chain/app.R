@@ -11,49 +11,47 @@ ui <- fluidPage( theme = bs_theme(version = 4,bootswatch = "flatly"),
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
         sidebarPanel(
-            sliderInput("inter_arrival_times",
-                        "Inter Arrival Times:",
+            sliderInput("inter_arrival_times", "Inter Arrival Times:",
                         min = 1,
                         max = 50,
                         value = 20),
-            checkboxInput("inter_arrival_times_var",
-                          "Should the arrival times be variable ?"),
+            checkboxInput("inter_arrival_times_var", "Should the arrival times be variable ?"),
             
-            sliderInput("service_times",
-                        "Service Times for all stations:",
+            sliderInput("service_times", "Service Times for all stations:",
                         min = 1,
                         max = 50,
                         value = 20),
-            checkboxInput("service_times_var",
-                          "Should the service times be variable ?"),
+            checkboxInput("service_times_var", "Should the service times be variable ?"),
             
             tags$h3("Capacity"),
             
-            sliderInput("cap_oc",
-                        "Capacity of Outpatient Clinic:",
+            sliderInput("cap_oc", "Capacity of Outpatient Clinic:",
                         min = 1,
                         max = 10,
                         value = 1),
-            sliderInput("cap_or",
-                        "Capacity of Operating Room",
+            sliderInput("cap_or", "Capacity of Operating Room",
                         min = 1,
                         max = 10,
                         value = 1),
-            sliderInput("cap_ward",
-                        "Capacity of Ward",
+            sliderInput("cap_ward", "Capacity of Ward",
                         min = 1,
                         max = 10,
                         value = 1)
         ),
         
         # Show a plot of the generated distribution
-        mainPanel( tabsetPanel(
-            tabPanel("Usage", plotOutput("usage")),
-            tabPanel("Utilziation", plotOutput("util")),
-            tabPanel("Activity Time", plotOutput("activ")),
-            tabPanel("Waiting Time", plotOutput("wait")),
-            tabPanel("Flow Time", plotOutput("flow"))
+        mainPanel(
+            tags$h3("Conceputal Representation"),
+            img(src = "Surgical_Chain_Revisit.png", height = 250), #possible to do  height  = "30%", width ="70%"
+            
+            tabsetPanel(
+                tabPanel("Usage", plotOutput("usage")),
+                tabPanel("Utilziation", plotOutput("util")),
+                tabPanel("Activity Time", plotOutput("activ")),
+                tabPanel("Waiting Time", plotOutput("wait")),
+                tabPanel("Flow Time", plotOutput("flow"))
         )
+        
         
         )
     )
@@ -72,7 +70,7 @@ server <- function(input,output) {
     # Modularize the simulation using reactive()
     
     sim <- reactive({
-        set.seed(2021)
+        
         
         
         
@@ -125,16 +123,18 @@ server <- function(input,output) {
             add_resource("operating_room",cap_or) %>%
             add_resource("ward", cap_wd) %>%
             add_generator("patient", patient,arrival_rate) %>%
-            run(until = 480)
+            run(until = 6000)
         
     })
     
     output$usage <- renderPlot({ 
-            plot(get_mon_resources(sim()), metric = "usage", items = "queue")
+            plot(get_mon_resources(sim()), metric = "usage", items = "queue",
+                 c("outpatient_clinic", "operating_room", "ward"))
         })
     
     output$util <- renderPlot({ 
-        plot(get_mon_resources(sim()), metric = "utilization")
+        plot(get_mon_resources(sim()), metric = "utilization",
+             c("outpatient_clinic", "operating_room", "ward"))
     })
     
     output$activ <- renderPlot({ 
