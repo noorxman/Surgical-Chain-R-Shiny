@@ -6,12 +6,13 @@ library(simmer.plot)
       ### SOME CONSTANTS ###
 arrival_rate <- function() { 10 }#rexp(1,1/5)}
 ##Capacity
+cap_doc <- 5 #number of doctors available for oc and or 
 cap_oc <- 1
 cap_or <- 1
-cap_wd <- 1
+cap_wd <- 0 # may be infinte since people need a bet necessarily
 ##Service Times
 serv_oc <- 10  #for stochastic values use function() rnorm(1,15)
-serv_or <- 30
+serv_or <- 10
 serv_wd <- 10
 
 CHECK_REVISIT <- function() {runif(1) <= 0.5} #50% of patients revisit
@@ -48,9 +49,11 @@ patient_normal <- trajectory("patients normal path") %>%
       release("operating_room", amount = 1) %>%
       
       ##add a planning activity
+      set_capacity("ward", 1, mod = "+") %>% 
       seize("ward") %>%
       timeout(serv_wd) %>%
-      release("ward") 
+      release("ward") %>% 
+      set_capacity("ward", -1, mod = "+")
 
 patient_revisit <- trajectory("patients revisit path") %>%
       
@@ -60,16 +63,20 @@ patient_revisit <- trajectory("patients revisit path") %>%
             }) %>%
       
       seize("home") %>% 
-      timeout(10) %>% 
+      timeout(10) %>%  #this timeout is the access time at home waiting for the revisit
       release("home") %>% 
+   
       set_attribute("access_time_home", function() {
             now(hospital) - get_attribute(hospital, "ward_end") # access time is the time between release from oc and entering or 
       }) %>%
             log_( function () {
                   paste("Going to the outpatient clinic at :", now(hospital) ) 
                   }) %>%
+   
+      seize("outpatient_clinic", amount = 1) %>%
+      timeout(serv_oc) %>%
+      release("outpatient_clinic")
       
-      join(patient_normal)
       
       
 
@@ -99,7 +106,7 @@ hospital %>% run(until = 100)
 ### ANALYSE AND PLOT RESULTS use ?plot.mon
 plot(get_mon_resources(hospital), metric = "usage")
 
-plot(get_mon_resources(hospital), metric = "usage", items = "queue", steps = TRUE)
+plot(get_mon_resources(hospital), metric = "usage", items = "queue", steps = FALSE)
 
 plot(get_mon_resources(hospital), metric = "utilization")
 
@@ -117,7 +124,8 @@ hospital %>% get_mon_attributes()
 #This frame will have the intermediate calculation of the time as well so: 
 
 ##Subset the frame such that only the entries where the access times != time are stored
-subset(get_mon_attributes(hospital), key == "access_time_or" )
+subset(get_mon_attributes(hospital), key == "access_time_home" | key == "access_time_or" )
+
 
 #subset(get_mon_attributes(hospital), time != value)
 
