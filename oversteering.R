@@ -1,4 +1,7 @@
 #test outpatient vs operating room oversteering
+library(simmer)
+library(simmer.plot)
+
 oversteer <- simmer("oversteer")
 cap <- 0 #dynamic changes in path can occur with the use of branch and a variable
 # Callable functions can change their value dynamically
