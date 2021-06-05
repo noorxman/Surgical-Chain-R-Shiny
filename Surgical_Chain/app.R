@@ -1,3 +1,5 @@
+############### SURGICAL CHAIN SIMULATION ################################
+
 library(shiny)
 library(simmer)
 library(simmer.plot)
@@ -11,17 +13,17 @@ ui <- fluidPage( theme = bs_theme(version = 4,bootswatch = "flatly"),
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
         sidebarPanel(
-            sliderInput("inter_arrival_times", "Inter Arrival Times:",
+            sliderInput("arrival_rate", "Average patients ariving per hour: ",
                         min = 1,
                         max = 50,
-                        value = 20),
-            checkboxInput("inter_arrival_times_var", "Should the arrival times be variable ?"),
+                        value = 10),
+            checkboxInput("arrival_rate_var", "Should the arrival rates be variable ?"),
             
-            sliderInput("service_times", "Service Times for all stations:",
+            sliderInput("service_rates", "Average patients served per hour:",
                         min = 1,
                         max = 50,
-                        value = 20),
-            checkboxInput("service_times_var", "Should the service times be variable ?"),
+                        value = 10),
+            checkboxInput("service_rates_var", "Should the service rates be variable ?"),
             
             tags$h3("Capacity"),
             
@@ -76,10 +78,10 @@ server <- function(input,output) {
         
         ### SOME CONSTANTS
         arrival_rate <- function() {  #Arrival rate either static or stochastic
-            if(input$inter_arrival_times_var == TRUE) {
-                rexp(1,1/input$inter_arrival_times)
+            if(input$arrival_rate_var == TRUE) {
+                rexp(1,1/input$arrival_rate *60)
             } else {
-                input$inter_arrival_times
+                1/input$arrival_rate * 60
             }
         }
         ##Capacity
@@ -88,10 +90,10 @@ server <- function(input,output) {
         cap_wd <- input$cap_ward
         ##Service Times
         serv_oc <-
-            if(input$service_times_var == TRUE) {
-                rexp(1,1/input$service_times)
+            if(input$service_rates_var == TRUE) {
+                rexp(1,1/input$service_rates * 60)
             } else {
-                input$service_times
+                1/input$service_rates * 60
             }
         
         serv_or <- serv_oc
@@ -123,9 +125,11 @@ server <- function(input,output) {
             add_resource("operating_room",cap_or) %>%
             add_resource("ward", cap_wd) %>%
             add_generator("patient", patient,arrival_rate) %>%
-            run(until = 6000)
+            run(until = 100)
         
     })
+    
+    ####OUTPUTS ######
     
     output$usage <- renderPlot({ 
             plot(get_mon_resources(sim()), metric = "usage", items = "queue",

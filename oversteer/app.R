@@ -1,11 +1,4 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+##################### OVERSTEER SIMULATION ############################
 
 library(shiny)
 library(simmer)
@@ -20,21 +13,27 @@ ui <- fluidPage(
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
         sidebarPanel(
-            actionButton("run", "Run the simulation"),
-            sliderInput("oc_doc",
-                        "Is the doctor in the OC ?",
+            actionButton("run", "Run the simulation for 100 units "),
+            
+            sliderInput("oc_doc1",
+                        "Is doctor 1 you have in the OC ?",
                         min = 0,
                         max = 1,
                         value = 1,
-                        step = 1), 
-            sliderInput("or_doc",
-                        "Doctor is in OR ?",
-                        min = 0,
-                        max = 1,
-                        value = 1,
-                        step = 1)
-        ),
-
+                        step = 1),
+        sliderInput("oc_doc2",
+                    "Is the doctor 2 you have in the OC ?",
+                    min = 0,
+                    max = 1,
+                    value = 1,
+                    step = 1),
+    sliderInput("oc_doc3",
+                "Is the doctor 3 you have in the OC ?",
+                min = 0,
+                max = 1,
+                value = 1,
+                step = 1),
+),
         # Show a plot of the generated distribution
         mainPanel(
            plotOutput("usage")
@@ -42,63 +41,65 @@ ui <- fluidPage(
     )
 )
 
-# Define server logic required to draw a histogram
+# Define server logic required to draw outputs
 server <- function(input, output) {
-    state <- reactive({
-        if (input$oc_doc == 0) {
-            cap <- 1
-            1 
-        } else {
-            cap <- 2
-            2
-        }
+    
+    #Constants 
+    
+    num_doc <- 3
+    ### REACTIVE PART ###
+#always call reactive funcitons with reactiveFunctionName()
+    # Reactive change of the state of the system based on input changes
+    #logic of capacity changes 
+    
+    oc_capacity <- reactive({
+        input$oc_doc1 + 
+        input$oc_doc2 + 
+        input$oc_doc3
     })
+    
+    or_capacity <- reactive({
+        1 - input$oc_doc1 +
+        1 - input$oc_doc2 +
+        1 - input$oc_doc3
+    })
+    
+    
     ### FIXED PART ###
         #fixed code that is run once to build the simulation
         oversteer <- simmer("oversteer")
         
         
         normal <- trajectory("normal") %>%
-            log_("I am in normal path") %>%
+            
+            # Set capacity dynamically based on reactive functions 
+            set_capacity("oc", function() {oc_capacity()} ) %>% 
+            set_capacity("or", function() {or_capacity()} ) %>% 
+            
             seize("oc") %>%
             timeout(10) %>% 
             release("oc") %>% 
-            log_("oh boy") %>%
+            
+            
             seize("or") %>% 
             timeout(10) %>%
-            release("or")
-        patient <- trajectory("patient") %>%
-            branch( option = function() {state()}, continue = TRUE,
-                    # option 1: CHange the capacity of oc to 0 and or to 1
-                    trajectory() %>%
-                        log_( function() { paste("The capactiy of oc is 0 state:", state())}) %>%
-                        set_capacity("oc", 0 ) %>%
-                        set_capacity("or", 1),
-                    # option 2: change the capacity of oc back to 1 and or to 0
-                    trajectory() %>%
-                        log_(function() { paste("The capactiy of oc is 0 state:", state())}) %>%
-                        set_capacity("oc", 1) %>% 
-                        set_capacity("or", 0)
-            ) %>%
-            log_("I am joining the normal path") %>%
-            join(normal)
+            release("or") 
     
         oversteer %>%
             add_resource('oc', capacity = 1) %>%
             add_resource("or", capacity = 0) %>%
-            add_generator("patient", patient, function() {10})
-            
-    ### REACTIVE PART ###
-    
-    #logic of capacity changes 
+            add_generator("patient", normal, function() {10})
         
-       
 
-    #RUN THE SIMULATION BASED ON THE 
+    ### RUN THE SIMULATION BASED WITHOUT RESET ### 
+        
+        #important to save the sim enviorement into and reactive sim variable
+        #that is called like a function
     sim <- eventReactive(input$run, {
         
         oversteer %>% run(until = now(oversteer) + 100)
     })
+    
     ### RENDER THE PLOTS BASED ON THE SIMULATION ###
     output$usage <- renderPlot({
         plot(get_mon_resources(sim()))
