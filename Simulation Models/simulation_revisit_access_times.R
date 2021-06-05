@@ -1,6 +1,7 @@
 #####Simulating a simple health center with revisits  (Surgical chain edition)
 set.seed(2021)
 library(simmer)
+library(ggplot2)
 library(simmer.plot)
 
       ### SOME CONSTANTS ###
@@ -117,6 +118,13 @@ plot(get_mon_arrivals(hospital), metric = "waiting_time")
 
 plot(get_mon_arrivals(hospital), metric = "flow_time")
 
+
+ggplot(data = get_mon_resources(hospital), mapping = aes(x = time)) +
+   geom_line(data = subset(x = get_mon_resources(hospital), resource == "outpatient_clinic"),
+             mapping = aes(x = time, y = queue )) +
+   geom_line(data = subset(x = get_mon_resources(hospital), resource == "home"),
+             mapping = aes(x = time, y = queue )) +
+   labs(title = "Queue Length over time", y = "Queue Length", x = "Time")
 ### HOW TO COMPUTE 
 
 ##Get the attributes data frame
