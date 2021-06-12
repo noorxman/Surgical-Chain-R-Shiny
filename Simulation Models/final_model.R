@@ -23,7 +23,14 @@ create_capacity_schedules <- function(...,time_intervall = c(25,50,75,100)) {
    x <- list(...)
    oc_capacity <- x[1:length(time_intervall)]
    or_capacity <- x[(length(time_intervall)+1):length(x)]
+   
    if(length(oc_capacity) == length(or_capacity)) {
+      # Check if the doctor capacity was exceeded
+      for (i in 1:length(oc_capacity)) {
+         if(oc_capacity[[i]] + or_capacity[[i]] > cap_doc) {
+            return(paste("The number of doctors was exceeded in phase", i))
+         }
+      }
       oc_schedule <- schedule(timetable = time_intervall,
                               values = as.numeric(oc_capacity), period = period)
       or_schedule <- schedule(timetable = time_intervall,
@@ -43,8 +50,7 @@ create_schedule <- function(Q1,Q2,Q3,Q4) {
 #possible to create a schedule with that 
 # and to implement some rules like if(sum(Q1,Q2,Q3,Q4) < 4) then yes otherwise no
 cap_oc <- create_schedule(1,2,1,2)
-cap_or <- schedule(timetable =c(25, 50, 75, 100),
-                   values = c(1,1,1,1),period = 100)
+cap_or <- create_capacity_schedules(1,2,1,2,1,1,1,1, time_intervall = c(25,50,75,100))[[1]]
 cap_wd <- 10 # may be infinte since people need a bet necessarily
 
       ## Service Times
