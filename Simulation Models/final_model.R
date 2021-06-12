@@ -10,8 +10,8 @@ library(simmer.plot)
 
                         ### SOME VARIABLES ###
 
-arrival_rate <- function() { 10 }#rexp(1,1/5)}
-CHECK_REVISIT <- function() {runif(1) <= 0.2} # revisit rate
+arrival_rate <- function() { rexp(1,rate = 1/10) } # mean = 1/rate = 10
+CHECK_REVISIT <- function() {runif(1) <= 0.2} # revisit rate 20%
 
       ## Capacity variables
 cap_doc <- 5 #number of doctors available for oc and or 
@@ -82,6 +82,7 @@ hospital %>% run(until = 1000)
 
             ### COMPUTE METRICS ###
 
+
       ## Acess Time (between OC and OR)
 
 # Get the arrivals per resource and compute waiting times
@@ -89,8 +90,29 @@ arrival <- get_mon_arrivals(hospital, per_resource = TRUE) %>%
    transform(waiting_time = end_time - start_time - activity_time)
 
 # Filter out the operating room waiting times = access times and the important columns
-access_times <- subset(arrival, resource == "operating_room")[,c("name", "waiting_time")]
-names(access_times) <- c("name", "access_time")
+access_times_or <- subset(arrival, resource == "operating_room")[,c("name", "waiting_time")]
+names(access_times_or) <- c("name", "access_time")
 
 # Plot the access time data ??? Still not sure what the best plot is
-ggplot(data = access_times, aes( x = "access_time")) + geom_bar()
+ggplot(data = access_times_or, aes( x = "access_time")) + geom_bar()
+
+
+      ## Access Time between end of ward and revisit OR 
+
+calculate_access_time_revisit <- function() {
+   
+   table(arrival$name) #frequency of each name
+   tf <- as.data.frame(table(arrival$name))# make it into a dataframe
+   tn <- tf[tf$Freq > 3, "Var1"] # get the names of the patients that appear >3 times
+   tn <- as.vector(tn) #make it into an vector
+   arrival$name %in% tn # check if in arrival$name there are elements of tn
+   
+   # Only the arrivals that appear more than 4 times are stored
+   access_times_revisit <- subset(arrival,arrival$name %in% tn )
+   x <- data.frame( name = vector(), waiting_time = vector())
+   
+   for(i in access_times_revisit$name) {
+      x <- rbind(x,subset(access_times_revisit, name == i)[4, c("name", "waiting_time")])
+   }
+   unique(x)
+}
