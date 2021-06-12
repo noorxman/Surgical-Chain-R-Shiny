@@ -7,22 +7,26 @@ set.seed(2021)
 library(simmer)
 library(ggplot2)
 library(simmer.plot)
+library(zoo) #rollmean function
+library(EnvStats) #rlnorm3 function
 
                         ### SOME VARIABLES ###
 
-arrival_rate <- function() { rexp(1,rate = 1/10) } # mean = 1/rate = 10
+arrival_rate <- function() { rexp(1,rate = 1/15) } # mean = 1/rate = 10
 CHECK_REVISIT <- function() {runif(1) <= 0.2} # revisit rate 20%
 
       ## Capacity variables
 cap_doc <- 5 #number of doctors available for oc and or 
-cap_oc <- 1
-cap_or <- 1
+cap_oc <- schedule(timetable =c(25, 50, 75, 100),
+                   values = c(1,2,1,2),period = 100)
+cap_or <- schedule(timetable =c(25, 50, 75, 100),
+                   values = c(1,1,1,1),period = 100)
 cap_wd <- 10 # may be infinte since people need a bet necessarily
 
       ## Service Times
-serv_oc <- 10  #for stochastic values use function() rnorm(1,15)
-serv_or <- 10
-serv_wd <- 10
+serv_oc <- function () {rlnorm3(1,2.5,0.5)} #which values to use for th three parameters
+serv_or <- function () {rlnorm3(1,2.5,0.5)} #they were tested with hist() and trial and error
+serv_wd <- function () {rlnorm3(1,2.5,0.5)}
 
             ### INSTANTIATE THE SIMULATION ENVIROMENT ###
 
@@ -116,3 +120,6 @@ calculate_access_time_revisit <- function() {
    }
    unique(x)
 }
+
+# Calculating the mean 
+mean(calculate_access_time_revisit()$waiting_time)
