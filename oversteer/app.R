@@ -36,6 +36,9 @@ ui <- fluidPage(
                             "Where should doctor C be ?",
                             choices = c("OC", "OR"),
                             selected = "OC"),
+            sliderTextInput("setschedule", "What should the schedule look like ?",
+                            choices = c("Y", "X"),
+                            selected = "Y")
 
             ),
         # Show a plot of the generated distribution
@@ -126,6 +129,10 @@ server <- function(input, output, session) {
         (input$doc3 == "OR") + 0
     })
     
+    schedule <- eventReactive(input$run,{schedule(timetable = c(25,50,75,100),
+                                   values = input$setschedule, 
+                                   period = 100)
+        })
     # or_capacity <- reactive({
     #     (input$doc1 == "OR") + 
     #     (input$doc2 == "OR") + 

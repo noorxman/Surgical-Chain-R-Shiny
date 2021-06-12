@@ -17,8 +17,32 @@ CHECK_REVISIT <- function() {runif(1) <= 0.2} # revisit rate 20%
 
       ## Capacity variables
 cap_doc <- 5 #number of doctors available for oc and or 
-cap_oc <- schedule(timetable =c(25, 50, 75, 100),
-                   values = c(1,2,1,2),period = 100)
+
+create_capacity_schedules <- function(...,time_intervall = c(25,50,75,100)) {
+   period <- time_intervall[length(time_intervall)]
+   x <- list(...)
+   oc_capacity <- x[1:length(time_intervall)]
+   or_capacity <- x[(length(time_intervall)+1):length(x)]
+   if(length(oc_capacity) == length(or_capacity)) {
+      oc_schedule <- schedule(timetable = time_intervall,
+                              values = as.numeric(oc_capacity), period = period)
+      or_schedule <- schedule(timetable = time_intervall,
+                              values = as.numeric(or_capacity), period = period)
+      list(oc_schedule,or_schedule)
+   } else {
+      "The capacity vectors for oc and or are not the same length or the time intervall length is not equal to the capacity vector length"
+   }
+   
+   
+}
+
+create_schedule <- function(Q1,Q2,Q3,Q4) {
+   schedule(timetable =c(25, 50, 75, 100),
+            values =  c(Q1,Q2,Q3,Q4), period = 100)
+} 
+#possible to create a schedule with that 
+# and to implement some rules like if(sum(Q1,Q2,Q3,Q4) < 4) then yes otherwise no
+cap_oc <- create_schedule(1,2,1,2)
 cap_or <- schedule(timetable =c(25, 50, 75, 100),
                    values = c(1,1,1,1),period = 100)
 cap_wd <- 10 # may be infinte since people need a bet necessarily
@@ -52,7 +76,7 @@ patient_normal <- trajectory("patients normal path") %>%
       seize("operating_room") %>%
       log_("Beginning Surgery") %>%
       timeout(serv_or) %>%
-      release("operating_room", amount = 1) %>%
+      release("operating_room") %>%
       log_("Surgery done, going to ward") %>% 
       
       ## After surgery the patient goes to the ward for some amount and then leaves
