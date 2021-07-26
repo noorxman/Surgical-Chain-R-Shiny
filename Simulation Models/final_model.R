@@ -17,18 +17,19 @@ CHECK_REVISIT <- function() {runif(1) <= 0.2} # revisit rate 20%
 
       ## Capacity variables
 cap_doc <- 5 #number of doctors available for oc and or 
-
-create_capacity_schedules <- function(...,time_intervall = c(25,50,75,100)) {
+#Checks if the schedule is valid for the given doctor capacity and the time intervalls
+create_capacity_schedules <- function(oc_capacity, or_capacity,time_intervall = c(25,50,75,100))
+   {
    period <- time_intervall[length(time_intervall)]
-   x <- list(...)
-   oc_capacity <- x[1:length(time_intervall)]
-   or_capacity <- x[(length(time_intervall)+1):length(x)]
+   # x <- list(...)
+   # oc_capacity <- x[1:length(time_intervall)]
+   # or_capacity <- x[(length(time_intervall)+1):length(x)]
    
    if(length(oc_capacity) == length(or_capacity)) {
       # Check if the doctor capacity was exceeded
       for (i in 1:length(oc_capacity)) {
          if(oc_capacity[[i]] + or_capacity[[i]] > cap_doc) {
-            return(paste("The number of doctors was exceeded in phase", i))
+            stop(paste("The number of doctors was exceeded in phase", i))
          }
       }
       oc_schedule <- schedule(timetable = time_intervall,
@@ -37,21 +38,39 @@ create_capacity_schedules <- function(...,time_intervall = c(25,50,75,100)) {
                               values = as.numeric(or_capacity), period = period)
       list(oc_schedule,or_schedule)
    } else {
-      "The capacity vectors for oc and or are not the same length or the time intervall length is not equal to the capacity vector length"
+     stop("The capacity vectors for oc and or are not the same length
+          or the time intervall length is not equal to the capacity vector length")
    }
    
    
 }
 
-create_schedule <- function(Q1,Q2,Q3,Q4) {
-   schedule(timetable =c(25, 50, 75, 100),
-            values =  c(Q1,Q2,Q3,Q4), period = 100)
-} 
+#Only call with a schedule data frame that has the days as columns and OC or OR as values
+df_to_schedule <- function(data) {
+   y <- c()
+   for(i in 1:length(names(data))) {
+      #Create the OR schedule
+      if(data[1,i] == "OR") {
+         append(y,1) 
+      } else {
+         append(y,0)
+         
+      }
+   }
+   x
+}
+
+# create_schedule <- function(Q1,Q2,Q3,Q4) {
+#    schedule(timetable =c(25, 50, 75, 100),
+#             values =  c(Q1,Q2,Q3,Q4), period = 100)
+# } 
 #possible to create a schedule with that 
 # and to implement some rules like if(sum(Q1,Q2,Q3,Q4) < 4) then yes otherwise no
-cap_oc <- create_schedule(1,2,1,2)
-cap_or <- create_capacity_schedules(1,2,1,2,1,1,1,1, time_intervall = c(25,50,75,100))[[1]]
-cap_wd <- 10 # may be infinte since people need a bet necessarily
+sched <- create_capacity_schedules(oc_capacity = c(1,2,1,2), or_capacity = c(1,1,1,1),
+                                   time_intervall = c(100,200,300,400))
+cap_oc <- sched[[1]]
+cap_or <- sched[[2]]
+cap_wd <- 10 # may be infinite since people need a bet necessarily
 
       ## Service Times
 serv_oc <- function () {rlnorm3(1,2.5,0.5)} #which values to use for th three parameters
@@ -90,18 +109,18 @@ patient_normal <- trajectory("patients normal path") %>%
       seize("ward") %>%
       timeout(serv_wd) %>%
       release("ward") %>% 
-      log_("Treatement done")  %>%
+      log_("Treatement done")  #%>%
       #set_capacity("ward", -1, mod = "+")
 
       ## Some patient have to revisit so they are going back to the OC again
 
-      branch(CHECK_REVISIT, continue = FALSE, trajectory() %>%
-                                                log_("Revisit going to the OC again") %>%
-                                                seize("outpatient_clinic") %>%
-                                                timeout(serv_oc) %>%
-                                                release("outpatient_clinic") %>%
-                                                log_("Revisit Treatement done"))
-      
+      # branch(CHECK_REVISIT, continue = FALSE, trajectory() %>%
+      #                                           log_("Revisit going to the OC again") %>%
+      #                                           seize("outpatient_clinic") %>%
+      #                                           timeout(serv_oc) %>%
+      #                                           release("outpatient_clinic") %>%
+      #                                           log_("Revisit Treatement done"))
+      # 
 
             ### FILL THE HOSPITAL ENVIROMENT WITH RESOURCES AND GENERATORS ###
       
@@ -112,16 +131,25 @@ hospital  %>%
       add_generator("patient", patient_normal, arrival_rate, mon = 2) 
       
             ### RUN THE SIMULATION ###
-hospital %>% run(until = 1000)
+hospital %>% run(until = 100)
 
             ### COMPUTE METRICS ###
 
+# Classics 
+plot(get_mon_resources(hospital), metric = "usage", items = "queue",
+     c("outpatient_clinic", "operating_room", "ward"))
+
+plot(get_mon_resources(hospital), metric = "utilization",
+     c("outpatient_clinic", "operating_room", "ward"))
+
+# Turn scientific notation on or off (999) is off 
+options(scipen = 0)
 
       ## Acess Time (between OC and OR)
 
 # Get the arrivals per resource and compute waiting times
 arrival <- get_mon_arrivals(hospital, per_resource = TRUE) %>%
-   transform(waiting_time = end_time - start_time - activity_time)
+   transform(waiting_time = round (end_time - start_time - activity_time, digits = 3)) #round up to 3 digits
 
 # Filter out the operating room waiting times = access times and the important columns
 access_times_or <- subset(arrival, resource == "operating_room")[,c("name", "waiting_time")]

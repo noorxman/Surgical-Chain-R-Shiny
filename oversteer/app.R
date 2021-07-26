@@ -276,8 +276,8 @@ server <- function(input, output, session) {
         
         # plot the queue length for each patient type and for all together
         ggplot(data = NULL, mapping = aes(time, queue)) + 
-            geom_line(data = oc_pl, aes(color = factor(resource))) +
-            geom_line(data = oc_capacity_stat, aes(x = time, y = queue)) +
+            geom_step(data = oc_pl, aes(color = factor(resource))) +
+            #geom_step(data = oc_capacity_stat, aes(x = time, y = queue)) +
             labs(title = "QUEUE in OC")
         #facet_grid(cols =  vars(c("or_a", "or_b", "or_c")))
         

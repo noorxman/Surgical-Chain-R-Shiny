@@ -1,9 +1,12 @@
 #######OVERSTEERING PART 2 #####################################################
+library(simmer)
+library(simmer.plot)
+library(ggplot2)
 #Using a scheudle object to schedule capacity changes
 #capacity changes from time 0 to 25 to 1, from 25 to 50 to 0 and so on
 # it reeccurs in the period of 100 time units
 capacity_schedule <- schedule(timetable =c(25, 50, 75, 100),
-                              values = c(1,1,1,1),period = 100)
+                              values = c(1,0,1,0),period = 100)
 # Initialize the simulation at the beginning
 oversteer <- simmer("oversteer")
 # Define trajectories to follow
@@ -57,23 +60,13 @@ oversteer %>%
 
 oversteer %>% run(until = 100)
 
-#Trying things with ggplot 
-
-pl <- subset(get_mon_resources(oversteer), resource == c("oc_a", "oc_b", "oc_c"))
-             
-ggplot(data = NULL, mapping = aes(time, queue)) + 
-  geom_line(data = pl, aes(color = factor(resource))) +
-  geom_line(data = oc_capacity_stat, aes(x = time, y = queue))      #+ facet_grid(var(resource))
-  
-
-
-
 get_mon_arrivals(oversteer, per_resource = TRUE) %>%
    transform(waiting_time = end_time - start_time - activity_time)
 
 
 
 ### Get the queue size for the whole Outpatient clinc so all patient types combined
+pl <- subset(get_mon_resources(oversteer), resource == c("oc_a", "oc_b", "oc_c"))
 
 # get monitored resources
 resource_stat <- get_mon_resources(oversteer)
@@ -89,11 +82,13 @@ for(i in resource_stat[, "time"]) {
 }
 
 # get the unique values since some times are computet multiple times
-oc_capacity_stat <- unique(oc_capacity_stat)
+#oc_capacity_stat <- unique(oc_capacity_stat)
 # plot the data for all oc's
 ggplot(data = oc_capacity_stat, mapping = aes(time, queue)) + geom_line()
 # plot the data for all oc's and the cumulative for the big one oc 
 ggplot(data = NULL, mapping = aes(time, queue)) + 
-     geom_line(data = pl, aes(color = factor(resource))) +
-     geom_line(data = oc_capacity_stat, aes(x = time, y = queue, size = 1))      #+ facet_grid(var(resource))
+     geom_step(data = pl, aes(color = factor(resource))) 
+#+geom_step(data = oc_capacity_stat, aes(x = time, y = queue))      #+ facet_grid(var(resource))
+#some error with the calculation of the total in oc_capacity stat
+
 
