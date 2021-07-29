@@ -6,28 +6,36 @@ hospital <- simmer("hospital")
 
 #Define Trajectories
 patients_path <- trajectory("patients_path") %>%
-      set_global("Entrance", values = 1,mod = "+") %>%
-      set_attribute("ID", function() {get_global(hospital, "Entrance")}) %>%
-      seize("waiting_list") %>%
-      log_(function() {paste0("to be received: ",get_name(hospital), " ", "OR1 Free")}) %>%
-      trap(signals = function() {paste0(get_name(hospital), " ", "OR1 Free")},
-           handler = trajectory() %>%
-                        log_("Leaving the waiting list for the OR1") %>%
-                        release("waiting_list")
-           ) %>%
-      log_("In the Waiting List") %>%
-      wait() %>% 
-      select("OR1") %>% #function(){sample(c("OR1", "OR2"),1)}
-      log_("Going to the OR1") %>%
-      seize_selected() %>%
-      timeout(10) %>%
-      release_selected() %>%
-      send(signals = function() {
-         x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
-         x <- x[x$resource == "waiting_list",]
-         x <- x[order(x$start_time),]
-         x <- x[!duplicated(x$name),]
-         
+   set_global("Entrance", values = 1,mod = "+") %>%
+   set_attribute("ID", function() {get_global(hospital, "Entrance")}) %>%
+   seize("waiting_list") %>%
+   log_(function() {paste0("to be received: ",get_name(hospital), " ", "OR1 Free")}) %>%
+   trap(signals = function() {paste0(get_name(hospital), " ", "OR1 Free")},
+        handler = trajectory() %>%
+           log_("Leaving the waiting list for the OR1") %>%
+           release("waiting_list")
+   ) %>%
+   log_("In the Waiting List") %>%
+   wait() %>% 
+   select("OR1") %>% #function(){sample(c("OR1", "OR2"),1)}
+   log_("Going to the OR1") %>%
+   seize_selected() %>%
+   timeout(10) %>%
+   release_selected() %>%
+   set_global(
+      keys = function() {
+         x <- get_selected(hospital)
+         paste0("Last_Patient_", x)},
+      values = function () get_attribute(hospital,"ID")
+      ) %>%
+   send(signals = function() {
+      x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
+      x <- x[x$resource == "waiting_list",]
+      x <- x[order(x$start_time),]
+      x <- x[!duplicated(x$name),]
+      
+      
+      
          for (i in 1:length(x$name)) {
             if(get_name(hospital) == x[i,1]) {
                if(!is.na(x[i +1, 1])) {
@@ -36,87 +44,120 @@ patients_path <- trajectory("patients_path") %>%
                }
             }
          }
-         return("wait_for_patients")
-         
-      } ) %>%
-      log_("Leaving the OR1")
+          
+      
+      return("wait_for_patients")
+      
+      
+   } ) %>%
+   
+   log_("Leaving the OR1")
+
 
 wait_for_patients_handler <- trajectory("wait_for_patients_handler") %>%
-      trap("wait_for_patients",
-           handler = trajectory()
-              
-                        ) %>%
-      wait()%>%
-      rollback(2)
+   
+   trap("wait_for_patients",
+        handler = trajectory() %>%
+           #Define variables as attributes to be used 
+           log_(function () as.character(peek(hospital))) %>%
+           log_(function () as.character(now(hospital))) %>%
+           set_attribute("current_entrance", function() get_global(hospital,"Entrance")) %>%
+           #Jump to the time of the next event that is of interest (arrival to the waiting list)
+           set_attribute("Time_to_next_event", function() {
+              x <- peek(hospital, steps = 5, verbose = TRUE)
+              x <- x[!x$process == "wait_handler0" & x$time != Inf,]
+              if(!is.na(x[1,1])) {
+                 return(x[1,1]- now(hospital) + 1)
+              }
+              return(0)
+              }) %>%
+           log_( function () as.character(get_attribute(hospital,'Time_to_next_event'))) %>%
+           timeout_from_attribute("Time_to_next_event") %>%
+           log_(function () paste0("New Entry is :",get_global(hospital,"Entrance") - 1 )) %>%
+           send(function () paste0("patient_a",get_global(hospital,"Entrance") - 1, " ", "OR1 Free")) %>%
+           log_(function () paste0("Message send is: ","patient_a",
+                                   get_global(hospital,"Entrance") - 1, " ", "OR1 Free" ))%>%
+           timeout(1) %>%
+            
+
+           rollback(8, check = function() {
+              if(get_global(hospital,"Entrance") > get_attribute(hospital,"current_entrance"))
+                 FALSE else TRUE})
+
+   ) %>%
+   wait()%>%
+   rollback(2)
 
 t_signaler <- trajectory("signaler") %>%
-      send(function() {
-         signals <- c()
-         type <- "a"
-         n_to_schedule <- 0 #mean service time / total time of the day
-         for (i in 0:n_to_schedule) {
-            signals <- append(signals,paste0("patient_",type, i, " ", "OR1 ", "Free"))
-         }
-         print(signals)
-         return(signals)   
-            }
-      )
-
-handle_signal <- function() {
-      paste0(get_name(hospital), "OR1 Free")
-}
-      
-send_mulitple_signals <- function() {
+   send(function() {
       signals <- c()
       type <- "a"
-      n_to_schedule <- 3 #mean service time / total time of the day
-      for (i in 1:n_to_schedule) {
+      n_to_schedule <- 0 #mean service time / total time of the day
+      for (i in 0:n_to_schedule) {
          signals <- append(signals,paste0("patient_",type, i, " ", "OR1 ", "Free"))
       }
       print(signals)
-      return(signals)
+      return(signals)   
+   }
+   )
+
+handle_signal <- function() {
+   paste0(get_name(hospital), "OR1 Free")
+}
+
+send_mulitple_signals <- function() {
+   signals <- c()
+   type <- "a"
+   n_to_schedule <- 3 #mean service time / total time of the day
+   for (i in 1:n_to_schedule) {
+      signals <- append(signals,paste0("patient_",type, i, " ", "OR1 ", "Free"))
+   }
+   print(signals)
+   return(signals)
 }
 
 selecting_the_next_one <- function() {
-      x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
-      x <- x[x$resource == "waiting_list",]
-      x <- x[order(x$start_time),]
-      x <- x[!duplicated(x$name),]
-      
-      for (i in 1:length(x$name)) {
-            if(get_name(hospital) == x[i,1]) {
-                  if(!is.na(x[i +1, 1])) {
-                        return(x[i+1,1])
-                  }
-            }
+   x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
+   x <- x[x$resource == "waiting_list",]
+   x <- x[order(x$start_time),]
+   x <- x[!duplicated(x$name),]
+   
+   for (i in 1:length(x$name)) {
+      if(get_name(hospital) == x[i,1]) {
+         if(!is.na(x[i +1, 1])) {
+            return(x[i+1,1])
+         }
       }
-      return("wait_for_patients")
-      
+   }
+   return("wait_for_patients")
+   
 }
-      
+
 patients_path_a <- trajectory("patients_path_a") %>%
-      set_attribute(keys = "type",values = 1) %>%
-      join(patients_path)
+   set_attribute(keys = "type",values = 1) %>%
+   join(patients_path)
 
 patients_path_b <- trajectory("patients_path_b") %>%
-      set_attribute(keys = "type",values = 2) %>%
-      join(patients_path)
+   set_attribute(keys = "type",values = 2) %>%
+   join(patients_path)
 
 #Define Resources
 hospital %>%
-      add_resource(name = "waiting_list", capacity = Inf) #limit queue size to allow for a max waiting list length
-      
+   add_resource(name = "waiting_list", capacity = Inf) #limit queue size to allow for a max waiting list length
+
 #Add the variable number of operating rooms and their global attributes
 for (i in 1:3) {
-      hospital %>% add_resource(name = paste0("OR", i), capacity = 1) %>%
-                   add_global(paste0("Last_Patient_","OR", i), 0)             
-      
+   hospital %>% add_resource(name = paste0("OR", i), capacity = 1) %>%
+      add_global(paste0("Last_Patient_","OR", i), 0)             
+   
 }
 #Add generators
 hospital %>%
-      add_generator("patient_a", patients_path_a, at(0,1,2,6),mon = 2) %>%
-      add_generator("signaler", t_signaler, at(0)) %>%
-      add_global("Entry", 0)
+   add_generator("wait_handler", wait_for_patients_handler, at(0), mon = 2) %>%
+   add_generator("patient_a", patients_path_a, at(0,1,2,6, 50),mon = 2) %>%
+   add_generator("signaler", t_signaler, at(0)) %>%
+   add_global("Entrance", 0) %>%
+   add_global("Next_Event",0)
 
 #Run the Simulation
 
@@ -125,16 +166,16 @@ hospital %>%
 
 #Test Functions###############################################################
 select_next_test <- function(name) {  
-      for (i in 1:length(x$name)) {
-            print(i)
-            if(name == x[i,1]) {
-                  print(paste0(i," found"))
-                  if(!is.na(x[i +1, 1])) {
-                     print(paste0("next one ",x[i+1,1]))
-                     return(x[i+1, 1])
-                  }
-            }
-            
+   for (i in 1:length(x$name)) {
+      print(i)
+      if(name == x[i,1]) {
+         print(paste0(i," found"))
+         if(!is.na(x[i +1, 1])) {
+            print(paste0("next one ",x[i+1,1]))
+            return(x[i+1, 1])
+         }
       }
+      
+   }
    print("There is no next on in the waiting list")
 }
