@@ -13,12 +13,15 @@ library(simmer.plot)
 library(DT)
 
 # Define UI for application that draws a histogram
-shinyUI(fluidPage(
+shinyUI(
     
+
+fluidPage(
+
     # Application title
     titlePanel("Operating Room Scheduling"),
-    
-    # Sidebar with a slider input for number of bins 
+
+    # Sidebar with a slider input for number of bins
     sidebarLayout(
         sidebarPanel(
             actionBttn("run", "RUN", style = "material-flat"),
@@ -27,18 +30,18 @@ shinyUI(fluidPage(
                          "How long should the simulation run?",
                          value = 100),
             DTOutput('input_schedule')
-            
-            ),
+
+        ),
         # Show a plot of the generated distribution
         mainPanel(fluidRow(
             # column(12, DTOutput('tbl'))
-            )
-            
-            
-            # fluidRow(
-            #     column(6, plotOutput("oc_usage")),
-            #     column(6, plotOutput("or_usage")),
-            )
+        )
+
+
+        # fluidRow(
+        #     column(6, plotOutput("oc_usage")),
+        #     column(6, plotOutput("or_usage")),
         )
     )
 )
+) 
