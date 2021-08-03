@@ -1,7 +1,7 @@
 #OR Scheduling Simulation Model 
+library(dplyr)
 library(simmer)
 library(stringr)
-
 
 #Test input schedule
 
@@ -19,16 +19,16 @@ patients_path <- trajectory("patients_path") %>%
    set_global("Entrance", values = 1,mod = "+") %>%
    set_attribute("ID", function() {get_global(hospital, "Entrance")}) %>%
    seize("waiting_list") %>%
-   log_(function() {paste0("to be received: ",get_name(hospital), " ", "OR1 Free")}) %>%
+   #log_(function() {paste0("Message to be received: ",get_name(hospital), " ", "OR1 Free")}) %>%
    trap(signals = function() {paste0(get_name(hospital), " ", "OR1 Free")},
         handler = trajectory() %>%
-           log_("Leaving the waiting list for the OR1") %>%
+           log_("Message received") %>%
            release("waiting_list")
    ) %>%
-   log_("In the Waiting List") %>%
+   log_("WAITING") %>%
    wait() %>% 
-   select("OR1") %>% #function(){sample(c("OR1", "OR2"),1)}
-   log_("Going to the OR1") %>%
+   simmer::select("OR1") %>% #function(){sample(c("OR1", "OR2"),1)}
+   log_("GOING OR1") %>%
    seize_selected() %>%
    timeout(5) %>%
    release_selected() %>%
@@ -45,11 +45,11 @@ patients_path <- trajectory("patients_path") %>%
       keys = function() {
          x <- get_selected(hospital)
          paste0("Number_Of_Last_Patient_", x)},
-      values = function ()  as.numeric(gsub(".*?([0-9]+).*", "\\1", x[i,1]))
+      values = function ()  as.numeric(gsub(".*?([0-9]+).*", "\\1", get_name(hospital)))
    ) %>%
    #send/pull the next patient to the operating room
    send(signals = function () {selecting_the_next_patient("block")}) %>%
-   log_("LEAVING the OR1")
+   log_("LEAVING OR1")
 
 
 # wait_for_patients_handler <- trajectory("wait_for_patients_handler") %>%
@@ -167,7 +167,7 @@ select_next_waiting_patient_block <- function () {
    x <- x[x$resource == "waiting_list",]
    x <- x[order(x$start_time),]
    x <- x[!duplicated(x$name),]
-   x <- x[str_detect(x$name, patient_type),]#filter the patient type
+   x <- x[str_detect(str_sub(x$name,9,9), patient_type),]#filter the patient type
    
    #intermediate check to see if someone suitable is in the queue (especially for swithcing types in block)
    patient_in_waiting <- selecting_the_next_patient_block_for_waiting()
@@ -392,4 +392,33 @@ select_next_test <- function(name) {
       
    }
    print("There is no next on in the waiting list")
+}
+
+get_patient_type_from_schedule_test <- function (time) {
+   x <- time
+   max_run_time <- 1000
+   day_time_range <- 24
+   
+   for (i in 0:as.integer(max_run_time/day_time_range)) {
+      if( i %% 2 == 0) {
+         #Monday
+         if(between(x,0 + day_time_range * i, 24 + 24 * i)) {
+            switch (a_init_schedule[1,1], #a_init_schedule[1,1] means monday column and row of OR1
+                    "Type A" = return("a"),
+                    "Type B" = return("b") # instead of 2 make it "b"
+            )
+         }
+         
+      } else {
+         if(between(x,0 + day_time_range * i, 24 + 24 * i)) {
+            switch (a_init_schedule[1,2], #a_init_schedule[1,2] means tuesday column and row of OR1
+                    "Type A" = return("a"),
+                    "Type B" = return("b") 
+            )
+         }
+         
+      }
+      
+   }
+   
 }
