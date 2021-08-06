@@ -25,8 +25,8 @@ renderInputs <- function(prefix) {
 renderOutputs <- function(prefix) {
     wellPanel(
         fluidRow(column(12, tags$h3("Performance Measures"))),
-        fluidRow(column(12,textOutput( paste0(prefix, "_", "pAccessTime")))),
-        fluidRow(column(12,textOutput( paste0(prefix, "_", "utilizatonOR")))),
+        fluidRow(column(12,tableOutput( paste0(prefix, "_", "pAccessTime")))),
+        fluidRow(column(12,tableOutput( paste0(prefix, "_", "utilizationOR")))),
         fluidRow(column(12,textOutput( paste0(prefix, "_", "bedShortage")))),
         fluidRow(column(12, tags$h3("Explanatory Measures"))),
         fluidRow(column(12,plotOutput( paste0(prefix, "_", "lengthOfWaitingList")))),
@@ -65,8 +65,8 @@ navbarPage(title = "Navigation Bar",
                             fluidRow(
                                 column(4, offset = 4,
                                        actionBttn(
-                                           inputId = "Run",
-                                            label = "Run the Simulation",
+                                           inputId = "run",
+                                            label = "run the Simulation",
                                             style = "float", 
                                             color = "success",
                                            icon = icon("running"), 

@@ -1,18 +1,46 @@
 #OR Scheduling Simulation Model 
-library(dplyr)
-library(simmer)
 library(stringr)
 library(purrr)
+library(lubridate)
+library(dplyr)
+library(simmer)
+library(simmer.plot)
 
 #Test input schedule
 
-a_init_schedule <- data.frame("Mon" = c("Type A", "Type B", "Type C"),
+a_init_schedule <- data.frame("Mon" = c("Type A", "Type A", "Type C"),
                               "Tue" = c("Type B", "Type B", "Type C"),
                               "Wed" = c("Type A", "Type B", "Type C"),
                               "Thu" = c("Type A", "Type B", "Type C"),
                               "Fri" = c("Type B", "Type B", "Type C"))
 
-schedule_policy <- "open"
+row.names(a_init_schedule) <- c("OR 1", "OR 2", "OR 3")
+
+
+define_policy <- function(policy) {
+if(policy == "open") {
+   schedule_policy_OR1 <<- "open"
+   schedule_policy_OR2 <<- "open"
+} else if (policy == "block") {
+   schedule_policy_OR1 <<- "block"
+   schedule_policy_OR2 <<- "block"
+} else if (policy == "modified_block" & length(which(a_init_schedule[,1] == "Open"))) {
+   #make the schedule with the modified block asput open in the table instead of Type A (maybe also dependend on the weekday
+   if(which(a_init_schedule[,1] == "Open") == 1) {
+      schedule_policy_OR1 <<- "open"
+      schedule_policy_OR2 <<- "block"
+   } else if(which(a_init_schedule[,1] == "Open") == 2) {
+      schedule_policy_OR1 <<- "block"
+      schedule_policy_OR2 <<- "open"
+   }
+   
+}
+}
+
+
+define_policy("open")
+
+week <- schedule(c(24,48,72,96,120), c(2,3,4,5,1), period = 120)
 
 #Initialize simulation environment
 hospital <- simmer("hospital")
@@ -42,7 +70,7 @@ patients_path <- trajectory("patients_path") %>%
    #function(){sample(c("OR1", "OR2"),1)}
    
    seize_selected() %>%
-   timeout(5) %>%
+   timeout(function() {runif(1,4.9,5.1)}) %>%
    release_selected() %>%
    #define and update the last patient variable for the OR visited for the wait handler 
    #to be able to select the next patient in an open policy
@@ -60,46 +88,16 @@ patients_path <- trajectory("patients_path") %>%
       values = function ()  as.numeric(gsub(".*?([0-9]+).*", "\\1", get_name(hospital)))
    ) %>%
    #send/pull the next patient to the operating room
-   send(signals = function () {selecting_the_next_patient(schedule_policy,get_selected(hospital))}) %>%
-   log_( function () paste0("LEAVING ", get_selected(hospital))) 
-
-
-# wait_for_patients_handler <- trajectory("wait_for_patients_handler") %>%
-#    
-#    trap("wait_for_patients",
-#         handler = trajectory() %>%
-#            #Define variables as attributes to be used 
-#            log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
-#            set_attribute("current_entrance", function() get_global(hospital,"Entrance")) %>%
-#            #Jump to the time of the next event that is of interest (arrival to the waiting list)
-#            set_attribute("Time_to_next_event", function() {
-#               x <- peek(hospital, steps = 5, verbose = TRUE)
-#               x <- x[!x$process == "wait_handler0" & x$time != Inf,]
-#               if(!is.na(x[1,1])) {
-#                  return(x[1,1]- now(hospital) + 1)
-#               } else {
-#                  return(-1)
-#                      
-#               }
-#               
-#               }) %>%
-#            log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
-#            leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
-#            timeout_from_attribute("Time_to_next_event") %>%
-#            log_(function () paste0("New Entry is :",get_global(hospital,"Entrance") - 1 )) %>%
-#            send(function () paste0("patient_a",get_global(hospital,"Entrance") - 1, " ", "OR1 Free")) %>%
-#            log_(function () paste0("Message send is: ","patient_a",
-#                                    get_global(hospital,"Entrance") - 1, " ", "OR1 Free" ))%>%
-#            timeout(1) %>%
-#             
-# 
-#            rollback(8, check = function() {
-#               if(get_global(hospital,"Entrance") > get_attribute(hospital,"current_entrance"))
-#                  FALSE else TRUE})
-# 
-#    ) %>%
-#    wait()%>%
-#    rollback(2)
+   send(signals = function () {
+      if(get_selected(hospital) == "OR1") {
+         policy <- schedule_policy_OR1
+      } else if(get_selected(hospital) == "OR2") {
+         policy <- schedule_policy_OR2
+      } else if(get_selected(hospital) == "OR2") {
+         policy <- schedule_policy_OR3
+         }  
+      selecting_the_next_patient(policy,get_selected(hospital))}) %>%
+   log_( function () paste0("LEAVING ", get_selected(hospital)))
 
 time_to_next_event <- function () {
    x <- peek(hospital, steps = 5, verbose = TRUE)
@@ -114,7 +112,6 @@ time_to_next_event <- function () {
    
 }
 
-
 wait_for_patients_handler_OR2 <- trajectory("wait_for_patients_handler") %>%
    
    trap("wait_for_patients_OR2",
@@ -127,18 +124,11 @@ wait_for_patients_handler_OR2 <- trajectory("wait_for_patients_handler") %>%
            log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
            leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
            timeout_from_attribute("Time_to_next_event") %>%
-           send(function () {select_next_waiting_patient(schedule_policy, "OR2"
-                                                         # function (){ # get the type of the patient that called the waiting handler
-                                                         #    x <- get_mon_arrivals(hospital, per_resource = TRUE,ongoing = TRUE)
-                                                         #    x <- x[x$resource == "OR1",]
-                                                         #    p_name <- x[1,1]
-                                                         #    if(str_detect(p_name, "b")) "b" else "a"
-                                                         # }
-                                                         )}) %>%
+           send(function () {select_next_waiting_patient(schedule_policy_OR2, "OR2")}) %>%
            timeout(0.01) %>%
            
            #check if the someone actually came to the OR1 
-           rollback(7, check = function() {
+           simmer::rollback(7, check = function() {
               print(paste0("OR 2 server count: ", get_server_count(hospital, "OR2")))  
               if(get_server_count(hospital, "OR2") == 1) FALSE else TRUE})
         
@@ -158,18 +148,11 @@ wait_for_patients_handler_OR1 <- trajectory("wait_for_patients_handler") %>%
            log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
            leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
            timeout_from_attribute("Time_to_next_event") %>%
-           send(function () {select_next_waiting_patient(schedule_policy, "OR1"
-                                                         # function (){ # get the type of the patient that called the waiting handler
-                                                         #    x <- get_mon_arrivals(hospital, per_resource = TRUE,ongoing = TRUE)
-                                                         #    x <- x[x$resource == "OR1",]
-                                                         #    p_name <- x[1,1]
-                                                         #    if(str_detect(p_name, "b")) "b" else "a"
-                                                         # }
-           )}) %>%
+           send(function () {select_next_waiting_patient(schedule_policy_OR1, "OR1")}) %>%
            timeout(0.01) %>%
            
            #check if the someone actually came to the OR1 
-           rollback(7, check = function() {
+           simmer::rollback(7, check = function() {
               print(paste0("OR 1 server count: ",get_server_count(hospital, "OR1")))  
               if(get_server_count(hospital, "OR1") == 1) FALSE else TRUE})
         
@@ -187,7 +170,7 @@ wait_for_patients_handler_OR1 <- trajectory("wait_for_patients_handler") %>%
 select_next_waiting_patient <- function (policy,or) {
    if(policy == "open") {
       select_next_waiting_patient_open(or)
-   } else if (policy == schedule_policy) {
+   } else if (policy == "block") {
       select_next_waiting_patient_block(or)
    }
 }
@@ -195,24 +178,36 @@ select_next_waiting_patient <- function (policy,or) {
 select_next_waiting_patient_open <- function (or) {
    #PRECONDITION: NO one is in the waiting list = wait handler is called correctly
    #filter the arrivals that happen at the predicted next moment
-   x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
-   x <- x[x$resource == "waiting_list",]
-   x <- x[order(x$start_time),]
-   x <- x[!duplicated(x$name),]
-   x <- x[x$start_time >= now(hospital) - 0.0015,]
-   # take the patient that arrives at this moment as he is the newest addition to the waiting list
-   if(!is.na(x[1,1])) {
-      #patient_num <- as.numeric(gsub(".*?([0-9]+).*", "\\1", x[i,1])) ONLY FOR BLOCK Policy
-      print(paste0("The next one is: ",x[1,1], " ", or," ", "Free" ))
-      return(paste0(x[1,1], " ", or, " ", "Free") )
-   } else { return("ddsdfa")}
+   selecting_the_next_patient_open(or)
+   # x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
+   # z <- get_mon_arrivals(hospital)
+   # x <- x[x$resource == "waiting_list",]
+   # x <- x[order(x$start_time),]
+   # x <- x[!duplicated(x$name),]
+   # 
+   # #Preliminary check if someone came to the waiting list while the wait handler jumped in time
+   # p_name <- selecting_the_next_patient_open_for_waiting(or)
+   # 
+   # if(!p_name == paste0("wait_for_patients_",or)) {
+   #    print(paste0("The next one is: ",p_name))
+   #    return(p_name)
+   # }
+   # 
+   # # Continue with checking the new event 
+   # 
+   # x <- x[x$start_time >= now(hospital) - 0.0015,]
+   # # take the patient that arrives at this moment as he is the newest addition to the waiting list
+   # if(!is.na(x[1,1])) {
+   #    print(paste0("The next one is: ",x[1,1], " ", or," ", "Free" ))
+   #    return(paste0(x[1,1], " ", or, " ", "Free") )
+   # } else { return(paste0("wait_for_patients_",or))}
    
 }
 
 select_next_waiting_patient_block <- function (or) {
    #PRECONDITION: NO one of the specified type is in the waiting list = wait handler is called correctly
    #filter the arrivals that happen at the predicted next moment
-   patient_type <- get_patient_type_from_schedule()
+   patient_type <- get_patient_type_from_schedule(or)
    
    #check if no one of the type is in the schedule 
    
@@ -224,7 +219,7 @@ select_next_waiting_patient_block <- function (or) {
    x <- x[str_detect(str_sub(x$name,9,9), patient_type),]#filter the patient type
    
    #intermediate check to see if someone suitable is in the queue (especially for swithcing types in block)
-   patient_in_waiting <- selecting_the_next_patient_block_for_waiting()
+   patient_in_waiting <- selecting_the_next_patient_block_for_waiting(or)
    
    if(length (x[x$name == patient_in_waiting,1]) >0) {
       return(paste0(patient_in_waiting, " ", or," ", "Free"))
@@ -245,90 +240,186 @@ select_next_waiting_patient_block <- function (or) {
 }
 
 t_signaler <- trajectory("signaler") %>%
-   #Assumption: Type A goes to OR1 first
    send(function() {
       signals <- c()
-      
-      #mean service time / total time of the day
-      signals <- append(signals,paste0("patient_","a", 0, " ", "OR1 ", "Free"))
-      signals <- append(signals,paste0("patient_","b", 0, " ", "OR2 ", "Free"))
+      #IF open schedule policy for both then call the default
+      if(schedule_policy_OR1 == "open" & schedule_policy_OR2 == "open" ) {
+         type_OR1 <- "a"
+         type_OR2 <- "b"
+      } else {
+         #IF the block scheduling policy is chosen (same as the condition given) then signal the types 
+         if(length(which(a_init_schedule[,1] == "Open")) == 0) {
+            type_OR1 <- get_patient_type_from_schedule("OR1")
+            type_OR2 <- get_patient_type_from_schedule("OR2")
+         } else {
+            #IF Open is in the schedule it is a modified block schedule 
+            #the open policy room has to take the type that is not scheduled first
+            if(which(a_init_schedule[,1] == "Open") == 1) {
+               if(get_patient_type_from_schedule("OR2") == "a") {
+                  type_OR1 <- "b"
+                  type_OR2 <- get_patient_type_from_schedule("OR2")
+               }else if(get_patient_type_from_schedule("OR2") == "b") {
+                  type_OR1 <- "a"
+                  type_OR2 <- get_patient_type_from_schedule("OR2")
+               }
+               
+            } else if(which(a_init_schedule[,1] == "Open") == 2) {
+               if(get_patient_type_from_schedule("OR1") == "a") {
+                  type_OR2 <- "b"
+                  type_OR1 <- get_patient_type_from_schedule("OR1")
+               }else if(get_patient_type_from_schedule("OR1") == "b") {
+                  type_OR2 <- "a"
+                  type_OR1 <- get_patient_type_from_schedule("OR1")
+               }
+            }  
+         }
+         
+      }
+      # Signals to send 
+      signals <- append(signals,paste0("patient_",type_OR1, 0, " ", "OR1 ", "Free"))
+      signals <- append(signals,paste0("patient_",type_OR2, 0, " ", "OR2 ", "Free"))
       print(signals)
       return(signals)   
    }
    )
 
 
-send_mulitple_signals <- function() {
-   signals <- c()
-   type <- "a"
-   n_to_schedule <- 3 #mean service time / total time of the day
-   for (i in 1:n_to_schedule) {
-      signals <- append(signals,paste0("patient_",type, i, " ", "OR1 ", "Free"))
+# send_mulitple_signals <- function() {
+#    signals <- c()
+#    type <- "a"
+#    n_to_schedule <- 3 #mean service time / total time of the day
+#    for (i in 1:n_to_schedule) {
+#       signals <- append(signals,paste0("patient_",type, i, " ", "OR1 ", "Free"))
+#    }
+#    print(signals)
+#    return(signals)
+# }
+
+get_patient_type_from_schedule <- function (or) {
+   
+   day <- get_capacity(hospital, "Day_of_week")
+   room <- as.numeric(str_sub(or,3))
+   
+   if(a_init_schedule[[room, day]] == "Type A") {
+      return("a")
+   }else if(a_init_schedule[room, day] == "Type B") {
+      return("b")
+   }else if(a_init_schedule[room, day] == "Type C") {
+      return("c")
    }
-   print(signals)
-   return(signals)
+   
 }
 
-get_patient_type_from_schedule <- function () {
-   x <- now(hospital)
-   max_run_time <- 1000
-   day_time_range <- 24
+get_patient_type_from_schedule_d <- function (or, d) {
    
-   for (i in 0:as.integer(max_run_time/day_time_range)) {
-      if( i %% 2 == 0) {
-         #Monday
-         if(between(x,0 + day_time_range * i, 24 + 24 * i)) {
-            switch (a_init_schedule[1,1], #a_init_schedule[1,1] means monday column and row of OR1
-                    "Type A" = return("a"),
-                    "Type B" = return("b") # instead of 2 make it "b"
-            )
-         }
-         
-      } else {
-         if(between(x,0 + day_time_range * i, 24 + 24 * i)) {
-            switch (a_init_schedule[1,2], #a_init_schedule[1,2] means tuesday column and row of OR1
-                    "Type A" = return("a"),
-                    "Type B" = return("b") 
-            )
-         }
-         
-      }
-      
+   room <- as.numeric(str_sub(or,3))
+   
+   if(a_init_schedule[room, d] == "Type A") {
+      return("a")
+   }else if(a_init_schedule[room, d] == "Type B") {
+      return("b")
+   }else if(a_init_schedule[room, d] == "Type C") {
+      return("c")
+   }else {
+      return("open")
    }
    
 }
+
+# get_patient_type_from_schedule_vectorised <- function (or, day) {
+#    
+#    if(length(or) != length(day)) {print("vectors are not of equal length")}
+#    room <- as.numeric(str_sub(or,3))
+#    
+#    results <- c()
+#    
+#    for(i in 1:length(or)) {
+#       if(a_init_schedule[as.numeric(str_sub(or[i],3)), day[i]] == "Type A") {
+#          results <- append(results, "a")
+#       }else if(a_init_schedule[as.numeric(str_sub(or[i],3)), day[i]] == "Type B") {
+#          results <- append(results, "b")
+#       }else if(a_init_schedule[as.numeric(str_sub(or[i],3)), day[i]] == "Type C") {
+#          results <- append(results, "c")
+#          
+#       }
+#    }
+#    results
+# 
+#    
+# }
 
 selecting_the_next_patient <- function(policy, or) {
    if(policy == "open") {
       selecting_the_next_patient_open(or)
-   } else if (policy == schedule_policy) {
+   } else if (policy == "block") {
       selecting_the_next_patient_block(or)
    }
-   #if(OR is defined as an open schedule ) then do selcting the next patient open function 
-   
-   #if(OR is defined as block scheduling) then do selectin the next patient block function 
-   
-   #the modified block scheduling case is done by having on operating room open while the others are block
 }
 
 selecting_the_next_patient_open <- function(or) {
    #filter the arrival table to the arrivals in the wating list in ascending order
    x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
+   #y <- x[!x$resource == or & !x$resource == "waiting_list",] 
+   x <- x[!duplicated(x),]
+   x <- x[!(duplicated(x$name) | duplicated(x$name, fromLast = TRUE)),]
+   x <- x[order(x$start_time),]
+   
+   if(!is.na(x[1,1])) {
+      result <- paste0(x[1,1], " ", or, " ", "Free")
+      return(result)
+   } else {
+      return(paste0("wait_for_patients_",or))
+   }
+   # patients that are in the other operating rooms at the moment
+   
+   #people that are still not finished
+   # x <- x[x$resource == "waiting_list",]
+   # x <- x[order(x$start_time),]
+   # x <- x[!duplicated(x$name),]
+   # x <- x[is.na(x$end_time),] 
+   # 
+   
+   # get the patient that is after this patient in the waiting list,
+   # independent of the patient type (open scheduling)
+   
+   # f <- which(x$name == get_name(hospital))
+   # # special case for the beginning due to the fact that the first ones are registered as done in the table and do not have the NA  
+   # if(get_name(hospital) == "patient_a0") {
+   #    f <- 0
+   # }
+   # 
+   # if(!is.na(x[1,1]) & !length(f) == 0) {
+   #    for (i in f:length(x$name)) {
+   #       if(!is.na(x[i +1, 1]) & !x[i +1, 1] %in% y$name ) {
+   #          result <- paste0(x[i+1,1], " ", or, " ", "Free")
+   #          return(result)
+   #       }
+   #       
+   #    }
+   # }
+   # if there is no one after this patient initiate the wait for patient handler 
+   
+   
+}
+
+selecting_the_next_patient_open_for_waiting <- function(or) {
+   #filter the arrival table to the arrivals in the wating list in ascending order
+   x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
+   z <- get_mon_arrivals(hospital)
    # patients that are in the other operating rooms at the moment
    y <- x[!x$resource == or & !x$resource == "waiting_list",] 
    #people that are still not finished
    x <- x[x$resource == "waiting_list",]
    x <- x[order(x$start_time),]
    x <- x[!duplicated(x$name),]
-   x <- x[is.na(x$end_time),] 
    
    
    # get the patient that is after this patient in the waiting list,
    # independent of the patient type (open scheduling)
    
    f <- which(x$name == get_name(hospital))
-   # special case for the beginning due to the fact that the first ones are registered as done in the table and do not have the NA still 
-   if(get_name(hospital) == "patient_a0") {
+   # special case for the beginning due to the fact that the first ones are registered as done in the table and do not have the NA  
+   if(get_name(hospital) == "patient_a0" | get_name(hospital) == "patient_b0") {
       f <- 0
    }
    
@@ -346,11 +437,11 @@ selecting_the_next_patient_open <- function(or) {
    
 }
 
-selecting_the_next_patient_block_for_waiting <- function () {
+selecting_the_next_patient_block_for_waiting <- function (or) {
    #Extract the number of the current patients
    # patient_name <- get_name(hospital)
    # patient_num <- as.numeric(gsub(".*?([0-9]+).*", "\\1", patient_name))
-   patient_type <- get_patient_type_from_schedule()
+   patient_type <- get_patient_type_from_schedule(or)
    
    #filter the finished and unfinished arrivals of a particlular patient type in ascending order
    x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
@@ -372,9 +463,9 @@ selecting_the_next_patient_block <- function(or) {
    #Extract the number of the current patients
    # patient_name <- get_name(hospital)
    # patient_num <- as.numeric(gsub(".*?([0-9]+).*", "\\1", patient_name))
-   patient_type <- get_patient_type_from_schedule()
+   patient_type <- get_patient_type_from_schedule(or)
    
-   #filter the finsihed and unfinished arrivals of a particlular patient type in ascending order
+   #filter the finished and unfinished arrivals of a particular patient type in ascending order
    x <- get_mon_arrivals(hospital, ongoing = TRUE, per_resource = TRUE)
    x <- x[x$resource == "waiting_list",]
    x <- x[order(x$start_time),]
@@ -400,10 +491,6 @@ selecting_the_next_patient_block <- function(or) {
    
    
    }
-  
-   
-   
-
 
 patients_path_a <- trajectory("patients_path_a") %>%
    set_attribute(keys = "type",values = 1) %>%
@@ -442,71 +529,110 @@ for (i in seq(number_or)) {
    
 }
 
-# #Add the correct start time of the first signaler that initializes the pull process of the OR's
-# start_time_signaler <- function() {
-#    x <- peek(hospital, steps = 4, verbose = TRUE)
-#    x <- x[x$process == "patient_a",]
-#    return(at(x[1,1]))
-# }
-
 #Add generators
 hospital %>%
    add_generator("wait_handler_OR1", wait_for_patients_handler_OR1, at(0), mon = 2) %>%
    add_generator("wait_handler_OR2", wait_for_patients_handler_OR2, at(0), mon = 2) %>%
-   add_generator("patient_a", patients_path_a, from(0, function () rexp(1,0.1)), mon = 2) %>%
-   add_generator("patient_b", patients_path_b, from(0, function () rexp(1,0.1)), mon = 2) %>% 
+   add_generator("patient_a", patients_path_a, from(0, function () rexp(1,0.2)), mon = 2) %>% #from(0, function () rexp(1,0.2))
+   add_generator("patient_b", patients_path_b, from(0, function () rexp(1,0.2)), mon = 2) %>% #from(0, function () rexp(1,0.2))
    add_generator("signaler", t_signaler, at(0)) %>%
    add_global("Entrance", 0) %>%
-   add_global("Next_Event",0)
+   add_global("Next_Event",0) %>% 
+   add_resource("Day_of_week", week)
+# 
+# 
+# 
+# #Run the Simulation
+#Access time summary
+arrival_data <- get_mon_arrivals(hospital)
 
+acc_arrival_data <- arrival_data %>%
+   dplyr::filter(!name == "signaler0") %>%
+   dplyr::mutate(access_time = end_time - start_time - activity_time) %>%
+   dplyr::mutate(type = mapply(function(x) str_sub(x,9,9), name )) %>%
+   dplyr::group_by(type) %>%
+   dplyr::summarise(mean = mean(access_time),
+                    min  = min(access_time),
+                    max  = max(access_time),
+                    median = median(access_time),
+                    n = n())
+# 
+# 
+# arrival_data$access_time <- arrival_data$end_time - arrival_data$start_time - arrival_data$activity_time
+# mean_access_time <- mean(arrival_data$access_time)
+# 
+# Get resource data
+resource_data <- get_mon_resources(hospital)
+# 
+# Utilization per resource
+util_resource_data <- resource_data %>%
+   dplyr::group_by(resource, replication) %>%
+   dplyr::mutate(dt = time - dplyr::lag(time)) %>%
+   dplyr::mutate(capacity = ifelse(capacity < server, server, capacity)) %>%
+   dplyr::mutate(in_use = dt * dplyr::lag(server / capacity)) %>%
+   dplyr::summarise(utilization = sum(in_use, na.rm = TRUE) / sum(dt, na.rm=TRUE)) %>%
+   dplyr::filter(resource == "OR1" | resource == "OR2" )
 
-#Run the Simulation
+ggplot(util_resource_data, aes(x = resource , y = utilization)) + geom_col()
+# 
+# # Waiting list length
+# 
+waiting_list_data <- resource_data[resource_data$resource == "waiting_list",]
 
+ggplot(data = waiting_list_data, aes(y = server,x = time)) + geom_line() #+ geom_smooth()
 
+#Idle time per speciality type
 
+idle_time_resource_type_data <- resource_data %>%
+   dplyr::mutate(day = (day(seconds_to_period(time * 60 * 60)) %% 5) + 1) %>%
+   dplyr::filter(resource == "OR1" | resource == "OR2" ) %>%
+   dplyr::mutate(type = mapply( function (resource,day) get_patient_type_from_schedule_d(resource,day), resource, day))  %>%
+   dplyr::group_by(type) %>%
+   dplyr::mutate(dt = time - dplyr::lag(time)) %>%
+   dplyr::mutate(capacity = ifelse(capacity < server, server, capacity)) %>%
+   dplyr::mutate(in_use = dt * dplyr::lag(server / capacity)) %>%
+   dplyr::summarise(idle_time = (sum(dt, na.rm = TRUE) - sum(in_use, na.rm = TRUE)) / sum(dt, na.rm=TRUE)) %>%
+   dplyr::filter(type == "a" | type == "b")
 
-
-#Test Functions###############################################################
-select_next_test <- function(name) {  
-   for (i in 1:length(x$name)) {
-      print(i)
-      if(name == x[i,1]) {
-         print(paste0(i," found"))
-         if(!is.na(x[i +1, 1])) {
-            print(paste0("next one ",x[i+1,1]))
-            return(x[i+1, 1])
-         }
-      }
-      
-   }
-   print("There is no next on in the waiting list")
-}
-
-get_patient_type_from_schedule_test <- function (time) {
-   x <- time
-   max_run_time <- 1000
-   day_time_range <- 24
-   
-   for (i in 0:as.integer(max_run_time/day_time_range)) {
-      if( i %% 2 == 0) {
-         #Monday
-         if(between(x,0 + day_time_range * i, 24 + 24 * i)) {
-            switch (a_init_schedule[1,1], #a_init_schedule[1,1] means monday column and row of OR1
-                    "Type A" = return("a"),
-                    "Type B" = return("b") # instead of 2 make it "b"
-            )
-         }
-         
-      } else {
-         if(between(x,0 + day_time_range * i, 24 + 24 * i)) {
-            switch (a_init_schedule[1,2], #a_init_schedule[1,2] means tuesday column and row of OR1
-                    "Type A" = return("a"),
-                    "Type B" = return("b") 
-            )
-         }
-         
-      }
-      
-   }
-   
-}
+ggplot(util_resource_type_data, aes(x= type, y = idle_time)) + geom_col()
+# 
+# 
+# # util_OR1 <- as.numeric(x[2,3])
+# # util_OR2 <- as.numeric(x[3,3])
+# 
+# 
+# 
+# #Test Functions###############################################################
+# select_next_test <- function(name) {  
+#    for (i in 1:length(x$name)) {
+#       print(i)
+#       if(name == x[i,1]) {
+#          print(paste0(i," found"))
+#          if(!is.na(x[i +1, 1])) {
+#             print(paste0("next one ",x[i+1,1]))
+#             return(x[i+1, 1])
+#          }
+#       }
+#       
+#    }
+#    print("There is no next on in the waiting list")
+# }
+# 
+# get_patient_type_from_schedule_test <- function (day, or) {
+#   
+#    max_run_time <- 1000
+#    day_time_range <- 24
+#    
+#    
+#    #day <- get_capacity(hospital, "Day_of_week")
+#    room <- str_sub(or,3)
+#    
+#    if(a_init_schedule[room, day] == "Type A") {
+#       return("a")
+#    }else if(a_init_schedule[room, day] == "Type B") {
+#       return("b")
+#    }else if(a_init_schedule[room, day] == "Type C") {
+#       return("c")
+#    }
+#    
+# }
