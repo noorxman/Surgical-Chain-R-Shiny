@@ -1,16 +1,14 @@
 library(shiny)
-library(tuicalendr)
 library(shinyWidgets)
-library(simmer.plot)
 library(DT)
 
 #Function for rendering the Input panels of both players
 renderInputs <- function(prefix) {
     wellPanel(
         fluidRow(column(12,
-            radioButtons(paste0(prefix, "_", "schedulePolicies"), label = h3("Scheduling Policies"),
-                         choices = list("Open Scheduling" = 1, "Block Scheduling" = 2, "Mixed Block Scheduling" = 3), 
-                         selected = 1),
+            radioButtons(paste0(prefix, "_", "policy"), label = h3("Scheduling Policies"),
+                         choices = list("Block Scheduling" = 2, "Open Scheduling" = 1, "Mixed Block Scheduling" = 3), 
+                         selected = 2),
                 )
         ),
         fluidRow(column(12,
@@ -20,6 +18,79 @@ renderInputs <- function(prefix) {
         )
         
     )
+}
+
+render_operator_inputs_type <- function (prefix) {
+    
+    fluidRow(column(6, sliderInput(paste0("mean_inter_arrival_", prefix),paste0("Mean Inter Arrival Times of Type ", prefix, ":" ),
+                                    min = 1,
+                                    max = 30,
+                                    value = 5)
+                    ),
+             column(6, sliderInput(paste0("mean_service_rate_", prefix),paste0("Mean Service Rate of Type ", prefix, ":" ),
+                                  min = 1,
+                                  max = 30,
+                                  value = 5)
+             )
+             
+        )
+        
+}
+
+# render_operator_inputs_service_rate <- function () {
+#     wellPanel(
+#         fluidRow(
+#             column(6, sliderInput("mean_service_rate_a","Mean Service Rate of Type A:",
+#                                   min = 1,
+#                                   max = 30,
+#                                   value = 5)
+#             ),
+#             column(6, sliderInput("mean_service_rate_b","Mean Service Rate of Type B:",
+#                                   min = 1,
+#                                   max = 30,
+#                                   value = 5)
+#             )
+#         )
+#     )
+# }
+
+render_operator_inputs_capacity <- function () {
+    wellPanel(
+    fluidRow(
+        column(6, pickerInput(
+        inputId = "number_or",
+        label = "Number of Operating Rooms: ", 
+        choices = c("2", "3", "4", "5"),
+        options = list(
+            style = "btn-primary")
+    )
+    ))
+            
+    )
+        
+}
+    
+render_operator_inputs_general <- function () {
+    wellPanel(
+    fluidRow(
+        column(6, 
+               numericInput("seed_value","Set the seed value for the generation of simulated random values:",
+                                    value = 1,
+                                    min = 1,
+                                    max = 200,
+                                    step = 1)
+               ) 
+        # column(6,
+        #        awesomeCheckbox(
+        #            inputId = "random_seed_value",
+        #            label = "Shall the seed value be set randomly ?", 
+        #            value = TRUE,
+        #            status = "danger"
+        #        ))
+        )
+            
+    )
+        
 }
 
 renderOutputs <- function(prefix) {
@@ -89,6 +160,35 @@ navbarPage(title = "Navigation Bar",
                             )
                     )
             ),
-           tabPanel("Operators Page"),
+           tabPanel("Operators Page",
+                    fluidPage(
+                        tags$h1("OR Appointment Scheduling"),
+                        p("Here you can change the inputs of the simulation to create a new challenging enviroment!"),
+                        hr(),
+                        fluidRow(column(6,tags$h2("Arrival Rates")), column(6, tags$h2("Service Rates"))),
+                        wellPanel(
+                            render_operator_inputs_type("a"),
+                            render_operator_inputs_type("b")
+                        ),
+                        fluidRow(column(6,tags$h2("Capacity of Hospital")), column(6, tags$h2("General Settings"))),
+                       
+                            fluidRow(
+                                column(6,render_operator_inputs_capacity()),
+                                column(6,render_operator_inputs_general())
+                                )
+                        
+                        
+                        
+                        # fluidRow(column(4, offset = 4, tags$h2("General"))),
+                        # render_operator_inputs_general(),
+                        # fluidRow(column(4, offset = 4, tags$h2("Arrivals"))),
+                        # render_operator_inputs_arrival_rate(),
+                        # fluidRow(column(4, offset = 4, tags$h2("Service"))),
+                        # render_operator_inputs_service_rate(),
+                        # fluidRow(column(4, offset = 4, tags$h2("Capacity"))),
+                        # render_operator_inputs_capacity()
+                        
+                        )
+                    ),
            tabPanel("Manual"),
            tabPanel("About"))
