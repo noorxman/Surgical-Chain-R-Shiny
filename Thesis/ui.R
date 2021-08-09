@@ -1,14 +1,28 @@
 library(shiny)
 library(shinyWidgets)
 library(DT)
+library(bslib)
+
+
+
+# Themes and Dark Mode
+light <<- bs_theme()
+dark <<- bs_theme(bg = "black", fg = "white", primary = "purple")
+
 
 #Function for rendering the Input panels of both players
 renderInputs <- function(prefix) {
     wellPanel(
         fluidRow(column(12,
-            radioButtons(paste0(prefix, "_", "policy"), label = h3("Scheduling Policies"),
+            radioGroupButtons(paste0(prefix, "_", "policy"), label = h3("Scheduling Policies"),
                          choices = list("Block Scheduling" = 2, "Open Scheduling" = 1, "Mixed Block Scheduling" = 3), 
-                         selected = 2),
+                         selected = 2, individual = TRUE,
+                         checkIcon = list(
+                             yes = tags$i(class = "fa fa-circle",
+                                          style = "color: steelblue"),
+                             no = tags$i(class = "fa fa-circle-o",
+                                         style = "color: steelblue"))
+                         )
                 )
         ),
         fluidRow(column(12,
@@ -73,13 +87,20 @@ render_operator_inputs_capacity <- function () {
 render_operator_inputs_general <- function () {
     wellPanel(
     fluidRow(
-        column(6, 
+        column(4, 
                numericInput("seed_value","Set the seed value for the generation of simulated random values:",
                                     value = 1,
                                     min = 1,
                                     max = 200,
                                     step = 1)
-               ) 
+               ), 
+        column(4,
+               numericInput("run_time","Set the run time of the simulation:",
+                            value = 200,
+                            min = 100,
+                            max = 600,
+                            step = 50)
+               )
         # column(6,
         #        awesomeCheckbox(
         #            inputId = "random_seed_value",
@@ -98,7 +119,7 @@ renderOutputs <- function(prefix) {
         fluidRow(column(12, tags$h3("Performance Measures"))),
         fluidRow(column(12,tableOutput( paste0(prefix, "_", "pAccessTime")))),
         fluidRow(column(12,tableOutput( paste0(prefix, "_", "utilizationOR")))),
-        fluidRow(column(12,textOutput( paste0(prefix, "_", "bedShortage")))),
+        fluidRow(column(12,tableOutput( paste0(prefix, "_", "bedShortage")))),
         fluidRow(column(12, tags$h3("Explanatory Measures"))),
         fluidRow(column(12,plotOutput( paste0(prefix, "_", "lengthOfWaitingList")))),
         fluidRow(column(12,plotOutput( paste0(prefix, "_", "bedOccupancy")))),
@@ -107,14 +128,16 @@ renderOutputs <- function(prefix) {
     
 }
 
+
 # Define UI for application that plots random distributions
-navbarPage(title = "Navigation Bar",
+navbarPage(title = "Navigation Bar",theme = light, 
            tabPanel("Players Page",
-                    fluidPage(theme="simplex.min.css",
-                              tags$style(type="text/css",
-                                         "label {font-size: 12px;}",
-                                         ".recalculating {opacity: 1.0;}"),
-                              
+                    fluidPage(
+                        # theme="simplex.min.css",
+                        #       tags$style(type="text/css",
+                        #                  "label {font-size: 12px;}",
+                        #                  ".recalculating {opacity: 1.0;}"),
+                        #       
                               # Application title
                               tags$h1("OR Appointment Scheduling"),
                               p("A serious game about the appointment scheduling of elective patients. Play this game with two players and see who can handle the challenges of the Operating Room better!"),
@@ -137,7 +160,7 @@ navbarPage(title = "Navigation Bar",
                                 column(4, offset = 4,
                                        actionBttn(
                                            inputId = "run",
-                                            label = "run the Simulation",
+                                            label = "Run the Simulation",
                                             style = "float", 
                                             color = "success",
                                            icon = icon("running"), 
@@ -170,12 +193,18 @@ navbarPage(title = "Navigation Bar",
                             render_operator_inputs_type("a"),
                             render_operator_inputs_type("b")
                         ),
-                        fluidRow(column(6,tags$h2("Capacity of Hospital")), column(6, tags$h2("General Settings"))),
+                        fluidRow(
+                            column(6,tags$h2("Capacity of Hospital")), 
+                            column(6, tags$h2("General Settings"))
+                            ),
                        
-                            fluidRow(
-                                column(6,render_operator_inputs_capacity()),
-                                column(6,render_operator_inputs_general())
-                                )
+                        fluidRow(
+                            column(6,render_operator_inputs_capacity()),
+                            column(6,render_operator_inputs_general())
+                            ), 
+                        flowLayout(
+                            column(4, materialSwitch("dark_mode", "Dark mode", status = "primary"))
+                        )
                         
                         
                         

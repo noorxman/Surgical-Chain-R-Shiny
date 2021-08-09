@@ -13,6 +13,7 @@ library(purrr)
 library(dplyr)
 library(simmer)
 library(ggplot2)
+library(EnvStats)
 
 #paramNames <- c("init_schedule", "policy", "number_or", "inter_arrival_rate_a",
                 # "inter_arrival_rate_b", "inter_arrival_rate_c", "service_rate", "run_time")
@@ -20,7 +21,8 @@ library(ggplot2)
 varparamNames <- c("policy")
 
 fixparamNames <- c("mean_inter_arrival_a", "mean_inter_arrival_b",
-                "mean_service_rate_a", "mean_service_rate_b", "seed_value")
+                "mean_service_rate_a", "mean_service_rate_b", "seed_value", 
+                "run_time")
 
 
 week <- schedule(c(24,48,72,96,120), c(2,3,4,5,1), period = 120)
@@ -43,16 +45,20 @@ get_patient_type_from_schedule_d <- function (or, d, init_schedule) {
     
 }
 
+
+
+
 simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                               mean_inter_arrival_b = 5, mean_inter_arrival_c  = 5,
                               mean_service_rate_a = 5.1, mean_service_rate_b = 5.1,
                               mean_service_rate_c = 5.1,  number_or = 2,
-                              seed_value = 1, run_time = 200) {
+                              seed_value = 1, ward_capacity = 5, run_time = 200) {
     #-------------------------------------
     # Inputs
     #-------------------------------------    
     
     init_schedule = init_schedule
+    ward_capacity <<- ward_capacity
     
     # Possion process with exponential inter arrival times 
     inter_arrival_rate_a = 1/mean_inter_arrival_a 
@@ -261,7 +267,15 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                 policy <- schedule_policy_OR3
             }  
             selecting_the_next_patient(policy,get_selected(hospital))}) %>%
-        log_( function () paste0("LEAVING ", get_selected(hospital)))
+        log_( function () paste0("LEAVING ", get_selected(hospital))) %>%
+        log_("going to WARD") %>%
+        set_capacity("ward", 1, mod = "+") %>%
+        seize("ward") %>%
+        timeout(10) %>%
+        release("ward") %>%
+        set_capacity("ward", -1, mod = "+") %>%
+        log_("Leaving WARD")
+        
     
     
     
@@ -369,13 +383,23 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         join(patients_path)
     
     hospital %>%
-        add_resource(name = "waiting_list", capacity = Inf)
+        add_resource(name = "waiting_list", capacity = Inf) %>%
+        add_resource(name = "ward", capacity = 0, queue_size = 0)
     
     for (i in seq(number_or)) {
         hospital %>%
             add_resource(name = paste0("OR", i), capacity = 1) %>%
             add_global(paste0("Last_Patient_","OR", i), 0)     
         
+    }
+    
+    # Simulation Progress Bar
+    progress <- shiny::Progress$new()
+    progress$set(message = paste0("Running Simulation") , value = 0)
+    on.exit(progress$close())
+    
+    update_sim_progress <- function(sim_progress) {
+        progress$inc(sim_progress)
     }
     
     hospital %>%
@@ -389,7 +413,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         add_resource("Day_of_week", week) %>%
         
         # Run the simulation 
-        run(run_time)
+        run(run_time, progress = update_sim_progress)
         print(hospital)
     
     
@@ -399,9 +423,13 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
 plot_access_time <- function(simulation) {
     arrival_data <- get_mon_arrivals(simulation)
     
+    
     acc_arrival_data <- arrival_data %>%
         dplyr::filter(!name == "signaler0") %>%
-        dplyr::mutate(access_time = end_time - start_time - activity_time) %>%
+        dplyr::mutate(access_time = end_time - start_time - activity_time)
+    
+    print(acc_arrival_data)
+    acc_arrival_data <- acc_arrival_data %>%
         dplyr::mutate(type = mapply(function(x) str_sub(x,9,9), name )) %>%
         dplyr::group_by(type) %>%
         dplyr::summarise(mean = mean(access_time),
@@ -413,6 +441,7 @@ plot_access_time <- function(simulation) {
 
 plot_utilization <- function(simulation) {
     resource_data <- get_mon_resources(simulation)
+    print(resource_data)
     
     util_resource_data <- resource_data %>%
         dplyr::group_by(resource, replication) %>%
@@ -424,11 +453,20 @@ plot_utilization <- function(simulation) {
     
 }
 
-plot_waiting_list <- function(simulation) {
+plot_bed_shortages <- function (simulation) {
     resource_data <- get_mon_resources(simulation)
-    waiting_list_data <- resource_data %>%
-        dplyr::filter(resource == "waiting_list")
-    ggplot(waiting_list_data, aes(y = server,x = time)) + geom_line()
+    
+    bed_shortage_data <- resource_data %>%
+        dplyr::filter(resource == "ward") %>%
+        dplyr::filter(server > ward_capacity) %>%
+        dplyr::summarise(Max_Beds_short = max(server) - ward_capacity , Number_of_shortages = n())
+}
+
+plot_occupancy <- function(simulation, resource_type) {
+    resource_data <- get_mon_resources(simulation)
+    occupancy_data <- resource_data %>%
+        dplyr::filter(resource == resource_type)
+    ggplot(occupancy_data, aes(y = server,x = time)) + geom_line()
 }
 
 plot_idle_time <- function(simulation) {
@@ -451,6 +489,9 @@ plot_idle_time <- function(simulation) {
 
 # Define server logic 
 shinyServer(function(input, output, session) {
+    
+    
+  
     
     #-------------------------------------
     # Creation of Appointment Inputs
@@ -533,12 +574,8 @@ shinyServer(function(input, output, session) {
     }
     
     
-    sim_a <- eventReactive(input$run,{
-        print("simualtion A should start")
-        do.call(simulate_hospital, getparams("a"))})
-    sim_b <- eventReactive(input$run,{
-        print("simualtion A should start")
-        do.call(simulate_hospital, getparams("b"))})
+    sim_a <- eventReactive(input$run,{do.call(simulate_hospital, getparams("a"))})
+    sim_b <- eventReactive(input$run,{do.call(simulate_hospital, getparams("b"))})
     
     #cat(file=stderr(), "The simulation enviroment:", "\n", output$sim_a)
     
@@ -551,21 +588,25 @@ shinyServer(function(input, output, session) {
     output$a_utilizationOR <- renderTable(plot_utilization(sim_a()))
     output$b_utilizationOR <- renderTable(plot_utilization(sim_b()))
     #
-    # output$a_bedShortage
-    # output$b_bedShortage
+    output$a_bedShortage <- renderTable(plot_bed_shortages(sim_a()))
+    output$b_bedShortage <- renderTable(plot_bed_shortages(sim_b()))
     # #Plot Outputs
     #
-    output$a_lengthOfWaitingList <- renderPlot(plot_waiting_list(sim_a()))
-    output$b_lengthOfWaitingList <- renderPlot(plot_waiting_list(sim_b()))
+    output$a_lengthOfWaitingList <- renderPlot(plot_occupancy(sim_a(), "waiting_list"))
+    output$b_lengthOfWaitingList <- renderPlot(plot_occupancy(sim_b(), "waiting_list"))
     #
     #
-    # output$a_bedOccupancy
-    # output$b_bedOccupancy
+    output$a_bedOccupancy <- renderPlot(plot_occupancy(sim_a(), "ward"))
+    output$b_bedOccupancy <- renderPlot(plot_occupancy(sim_b(), "ward"))
     #
     #
     output$a_idleTime <- renderPlot(plot_idle_time(sim_a()))
     output$b_idleTime <- renderPlot(plot_idle_time(sim_b()))
     #
+    
+    observe(session$setCurrentTheme(
+        if (isTRUE(input$dark_mode)) dark else light
+    ))
 })
 
 
