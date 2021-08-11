@@ -20,9 +20,9 @@ library(EnvStats)
 
 varparamNames <- c("policy")
 
-fixparamNames <- c("mean_inter_arrival_a", "mean_inter_arrival_b",
-                "mean_service_rate_a", "mean_service_rate_b", "seed_value", 
-                "run_time")
+fixparamNames <- c("mean_inter_arrival_a", "mean_inter_arrival_b", "mean_inter_arrival_c",
+                "mean_service_rate_a", "mean_service_rate_b", "mean_service_rate_c",
+                "seed_value", "ward_capacity", "run_time")
 
 
 week <- schedule(c(24,48,72,96,120), c(2,3,4,5,1), period = 120)
@@ -51,7 +51,7 @@ get_patient_type_from_schedule_d <- function (or, d, init_schedule) {
 simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                               mean_inter_arrival_b = 5, mean_inter_arrival_c  = 5,
                               mean_service_rate_a = 5.1, mean_service_rate_b = 5.1,
-                              mean_service_rate_c = 5.1,  number_or = 2,
+                              mean_service_rate_c = 5.1,  number_or = 3,
                               seed_value = 1, ward_capacity = 5, run_time = 200) {
     #-------------------------------------
     # Inputs
@@ -88,12 +88,14 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
             
             schedule_policy_OR1 <<- "open"
             schedule_policy_OR2 <<- "open"
+            schedule_policy_OR3 <<- "open"
         } else if (policy == 2) {
             # for(i in 1:number_or) {
             #     x <- append(x, "open")
             # }
             schedule_policy_OR1 <<- "block"
             schedule_policy_OR2 <<- "block"
+            schedule_policy_OR3 <<- "block"
         } else if (policy == 3) { #& length(which(a_init_schedule[,1] == "Open"))
             # for(i in 1:number_or) {
             #     x <- append(x, "block")
@@ -102,6 +104,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
             
             schedule_policy_OR1 <<- "open"
             schedule_policy_OR2 <<- "block"
+            schedule_policy_OR3 <<- "block"
             #make the schedule with the modified block asput open in the table instead of Type A (maybe also dependend on the weekday
             # if(which(a_init_schedule[,1] == "Open") == 1) {
             #     schedule_policy_OR1 <<- "open"
@@ -119,6 +122,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         x <- peek(hospital, steps = 5, verbose = TRUE)
         x <- x[!x$process == "wait_handler_OR10" & x$time != Inf,]
         x <- x[!x$process == "wait_handler_OR20",]
+        x <- x[!x$process == "wait_handler_OR30",]
         if(!is.na(x[1,1])) {
             return(x[1,1]- now(hospital) + 0.001)
         } else {
@@ -226,6 +230,13 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                  simmer::select("OR2") %>%
                  log_("GOING OR2"), interruptible = FALSE
         ) %>%
+        trap(signals = function() {paste0(get_name(hospital), " ", "OR3 Free")},
+             handler = trajectory() %>%
+               log_("Message received") %>%
+               release("waiting_list") %>%
+               simmer::select("OR3") %>%
+               log_("GOING OR3"), interruptible = FALSE
+        ) %>%
         log_("WAITING") %>%
         wait() %>% 
         #function(){sample(c("OR1", "OR2"),1)}
@@ -263,7 +274,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                 policy <- schedule_policy_OR1
             } else if(get_selected(hospital) == "OR2") {
                 policy <- schedule_policy_OR2
-            } else if(get_selected(hospital) == "OR2") {
+            } else if(get_selected(hospital) == "OR3") {
                 policy <- schedule_policy_OR3
             }  
             selecting_the_next_patient(policy,get_selected(hospital))}) %>%
@@ -328,47 +339,89 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         wait()%>%
         rollback(2)
     
+    wait_for_patients_handler_OR3 <- trajectory("wait_for_patients_handler") %>%
+      
+      trap("wait_for_patients_OR3",
+           handler = trajectory() %>%
+             #Define variables as attributes to be used 
+             log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
+             # set_attribute("current_entrance", function() get_global(hospital,"Entrance")) %>%
+             #Jump to the time of the next event that is of interest (arrival to the waiting list)
+             set_attribute("Time_to_next_event", function () time_to_next_event()) %>%
+             log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
+             leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
+             timeout_from_attribute("Time_to_next_event") %>%
+             send(function () {selecting_the_next_patient(schedule_policy_OR3, "OR3")}) %>%
+             timeout(0.01) %>%
+             
+             #check if the someone actually came to the OR1 
+             simmer::rollback(7, check = function() {
+               print(paste0("OR 3 server count: ",get_server_count(hospital, "OR3")))  
+               if(get_server_count(hospital, "OR3") == 1) FALSE else TRUE})
+           
+      ) %>%
+      wait()%>%
+      rollback(2)
+    
     
     t_signaler <- trajectory("signaler") %>%
         send(function() {
             signals <- c()
             d <- get_capacity(hospital, "Day_of_week")
-            #IF open schedule policy for both then call the default
-            if(schedule_policy_OR1 == "open" & schedule_policy_OR2 == "open" ) {
+            #IF open schedule policy for both then call the default types
+            if(schedule_policy_OR1 == "open" & schedule_policy_OR2 == "open" & schedule_policy_OR3 == "open") {
                 type_OR1 <- "a"
                 type_OR2 <- "b"
+                type_OR3 <- "c"
+            # IF block schedule policy call the ones that are assigned by the schedule 
+            } else if(schedule_policy_OR1 == "block" & schedule_policy_OR2 == "block" & schedule_policy_OR3 == "block") {
+              type_OR1 <- get_patient_type_from_schedule_d("OR1",d,init_schedule)
+              type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+              type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
             } else {
-                #IF the block scheduling policy is chosen (same as the condition given) then signal the types 
-                if(length(which(init_schedule[,1] == "Open")) == 0) {
-                    type_OR1 <- get_patient_type_from_schedule_d("OR1",d,init_schedule)
-                    type_OR2 <- get_patient_type_from_schedule_d("OR2", d, init_schedule)
-                } else {
-                    #IF Open is in the schedule it is a modified block schedule 
-                    #the open policy room has to take the type that is not scheduled first
-                    if(which(init_schedule[,1] == "Open") == 1) {
-                        if(get_patient_type_from_schedule_d("OR2", d, init_schedule) == "a") {
-                            type_OR1 <- "b"
-                            type_OR2 <- get_patient_type_from_schedule_d("OR2", d, init_schedule)
-                        }else if(get_patient_type_from_schedule_d("OR2", d, init_schedule) == "b") {
-                            type_OR1 <- "a"
-                            type_OR2 <- get_patient_type_from_schedule_d("OR2", d, init_schedule)
-                        }
-                        
-                    } else if(which(init_schedule[,1] == "Open") == 2) {
-                        if(get_patient_type_from_schedule_d("OR1", d, init_schedule) == "a") {
-                            type_OR2 <- "b"
-                            type_OR1 <- get_patient_type_from_schedule_d("OR1", d, init_schedule)
-                        }else if(get_patient_type_from_schedule_d("OR1", d, init_schedule) == "b") {
-                            type_OR2 <- "a"
-                            type_OR1 <- get_patient_type_from_schedule_d("OR1", d, init_schedule)
-                        }
-                    }  
+            # IF modified block scheduling is chosen the open room has to take the other 
+            # patient type that is not assigned to a room at the beginning
+                if (get_patient_type_from_schedule_d("OR2", d, init_schedule) == "a" |
+                    get_patient_type_from_schedule_d("OR2", d, init_schedule) == "b" ) {
+                  if(get_patient_type_from_schedule_d("OR3", d, init_schedule) == "a" |
+                     get_patient_type_from_schedule_d("OR3", d, init_schedule) == "b" ) {
+                    # A and B are allocated then c has to start in the open room
+                    type_OR1 <- "c"
+                    type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+                    type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+                  }
                 }
+              
+              if (get_patient_type_from_schedule_d("OR2", d, init_schedule) == "c" |
+                  get_patient_type_from_schedule_d("OR2", d, init_schedule) == "b" ) {
+                if(get_patient_type_from_schedule_d("OR3", d, init_schedule) == "c" |
+                   get_patient_type_from_schedule_d("OR3", d, init_schedule) == "b" ) {
+                  # C and B are allocated then A has to start in the open room
+                  type_OR1 <- "a"
+                  type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+                  type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+                }
+              }
+              
+              if (get_patient_type_from_schedule_d("OR2", d, init_schedule) == "a" |
+                  get_patient_type_from_schedule_d("OR2", d, init_schedule) == "c" ) {
+                if(get_patient_type_from_schedule_d("OR3", d, init_schedule) == "a" |
+                   get_patient_type_from_schedule_d("OR3", d, init_schedule) == "c" ) {
+                  # A and C are allocated then B has to start in the open room
+                  type_OR1 <- "b"
+                  type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+                  type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+                }
+              }
+              }
+            
                 
-            }
+                
+            
             # Signals to send 
             signals <- append(signals,paste0("patient_",type_OR1, 0, " ", "OR1 ", "Free"))
             signals <- append(signals,paste0("patient_",type_OR2, 0, " ", "OR2 ", "Free"))
+            signals <- append(signals,paste0("patient_",type_OR3, 0, " ", "OR3 ", "Free"))
             print(signals)
             return(signals)   
         }
@@ -381,6 +434,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     patients_path_b <- trajectory("patients_path_b") %>%
         set_attribute(keys = "type",values = 2) %>%
         join(patients_path)
+    
+    patients_path_c <- trajectory("patients_path_c") %>%
+      set_attribute(keys = "type",values = 2) %>%
+      join(patients_path)
+    
     
     hospital %>%
         add_resource(name = "waiting_list", capacity = Inf) %>%
@@ -405,8 +463,10 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     hospital %>%
         add_generator("wait_handler_OR1", wait_for_patients_handler_OR1, at(0), mon = 2) %>%
         add_generator("wait_handler_OR2", wait_for_patients_handler_OR2, at(0), mon = 2) %>%
+      add_generator("wait_handler_OR3", wait_for_patients_handler_OR3, at(0), mon = 2) %>%
         add_generator("patient_a", patients_path_a,from(0, function () rexp(1,inter_arrival_rate_a)), mon = 2) %>% # at(0,1,3)  
         add_generator("patient_b", patients_path_b,from(0, function () rexp(1,inter_arrival_rate_b)) , mon = 2) %>% #at(0,2,4)
+      add_generator("patient_c", patients_path_c,from(0, function () rexp(1,inter_arrival_rate_c)) , mon = 2) %>% #at(0,2,4)
         add_generator("signaler", t_signaler, at(0)) %>%
         add_global("Entrance", 0) %>%
         add_global("Next_Event",0) %>% 
@@ -449,7 +509,7 @@ plot_utilization <- function(simulation) {
         dplyr::mutate(capacity = ifelse(capacity < server, server, capacity)) %>%
         dplyr::mutate(in_use = dt * dplyr::lag(server / capacity)) %>%
         dplyr::summarise(utilization = sum(in_use, na.rm = TRUE) / sum(dt, na.rm=TRUE)) %>%
-        dplyr::filter(resource == "OR1" | resource == "OR2" )
+        dplyr::filter(resource == "OR1" | resource == "OR2" | resource == "OR3")
     
 }
 
@@ -466,7 +526,18 @@ plot_occupancy <- function(simulation, resource_type) {
     resource_data <- get_mon_resources(simulation)
     occupancy_data <- resource_data %>%
         dplyr::filter(resource == resource_type)
-    ggplot(occupancy_data, aes(y = server,x = time)) + geom_line()
+    if(resource_type == "ward") {
+      ggplot(occupancy_data, aes(y = server,x = time)) + geom_line() +
+        geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
+        guides(color=FALSE) +
+        labs(x = "Time", y = "Bed Occupancy", title = "Bed Occupancy in the Ward") + 
+        theme_bw(base_size = 20)
+        
+    } else {
+      ggplot(occupancy_data, aes(y = server,x = time)) + geom_line() + 
+        labs(x = "Time", y = "Waiting list", title = "Waiting List Length") + theme_bw(base_size = 20)
+    }
+    
 }
 
 plot_idle_time <- function(simulation) {
@@ -474,16 +545,17 @@ plot_idle_time <- function(simulation) {
     
     idle_time_resource_type_data <- resource_data %>%
         dplyr::mutate(day = (day(seconds_to_period(time * 60 * 60)) %% 5) + 1) %>%
-        dplyr::filter(resource == "OR1" | resource == "OR2" ) %>%
+        dplyr::filter(resource == "OR1" | resource == "OR2" | resource == "OR3") %>%
         dplyr::mutate(type = mapply( function (resource,day) get_patient_type_from_schedule_d(resource,day, a_init_schedule), resource, day))  %>%
         dplyr::group_by(type) %>%
         dplyr::mutate(dt = time - dplyr::lag(time)) %>%
         dplyr::mutate(capacity = ifelse(capacity < server, server, capacity)) %>%
         dplyr::mutate(in_use = dt * dplyr::lag(server / capacity)) %>%
         dplyr::summarise(idle_time = (sum(dt, na.rm = TRUE) - sum(in_use, na.rm = TRUE)) / sum(dt, na.rm=TRUE)) %>%
-        dplyr::filter(type == "a" | type == "b")
+        dplyr::filter(type == "a" | type == "b" | type == "c" )
     
-    ggplot(idle_time_resource_type_data, aes(x= type, y = idle_time)) + geom_col()
+    ggplot(idle_time_resource_type_data, aes(x= type, y = idle_time)) + geom_col() +
+    labs(x = "Type", y = "Idle Time (in %)", title = "Idle Time per Speciality Type") + theme_bw(base_size =  20)
 }
 
 
@@ -497,6 +569,84 @@ shinyServer(function(input, output, session) {
     # Creation of Appointment Inputs
     #-------------------------------------
     
+  check_data_table_input <- function (schedule) {
+    if(schedule[1,1] == schedule[2,1] | schedule[2,1] == schedule[3,1] | schedule[1,1] == schedule[3,1]) {
+      sendSweetAlert(session,
+                     title = "Invalid Schedule Input",
+                     text = tags$div(
+                       tags$b("The surgery types scheduled on Monday cannot be of the same type!"),
+                       tags$br(),
+                       tags$em("Please choose three different surgery types on Monday")
+                       ),
+                     type = "error",
+                     html = TRUE)
+      }
+    for (i in 1:5) {
+      for (j in 1:3) {
+        if(schedule[j,i] == "Type A" |schedule[j,i] == "Type B" | schedule[j,i] == "Type C") {
+          next
+        } else {
+          sendSweetAlert(session,
+                         title = "Invalid Schedule Input",
+                         text = tags$div(
+                           tags$b(paste0("Typo found in row ", j, " and column ",i, ".")),
+                           tags$br(),
+                           "Valid Inputs: 'Type A' or 'Type B' or 'Type C'"
+                           ),
+                         type = "error",
+                         html = TRUE)
+        }
+      }
+    }
+  }
+  
+  #send info about the policys 
+  
+  observe({
+    if(input$notifications_on == TRUE){
+      if(input$a_policy == 1) {
+        sendSweetAlert(session,
+                       title = "Open Scheduling Policy",
+                       text = "For the open scheduling policy the given schedule is not regarded, instead all operating rooms are variably allocated for every surgery type",
+                       type = "info",
+                       html = TRUE)
+      } else if(input$a_policy == 3) {
+        sendSweetAlert(session,
+                       title = "Modified Block Scheduling Policy",
+                       text = tags$div(
+                         "This policy allocates the Operating Room 1 with the open scheduling policy while the other OR's follow the block policy.",
+                         tags$br(),
+                         "Please adjust the schedule such that the surgery types are allocated on Operting Room 2 and 3!"
+                       ),
+                       type = "info",
+                       html = TRUE)
+      }
+    }
+     
+  })
+  
+  observe({
+    if(input$notifications_on == TRUE){
+      if(input$b_policy == 1) {
+        sendSweetAlert(session,
+                       title = "Open Scheduling Policy",
+                       text = "For the open scheduling policy the given schedule is not regarded, instead all operating rooms are variably allocated for every surgery type",
+                       type = "info",
+                       html = TRUE)
+      } else if(input$b_policy == 3) {
+        sendSweetAlert(session,
+                       title = "Modified Block Scheduling Policy",
+                       text = tags$div(
+                         "This policy allocates the Operating Room 1 with the open scheduling policy while the other OR's follow the block policy.",
+                         tags$br(),
+                         "Please adjust the schedule such that the surgery types are allocated on Operting Room 2 and 3!"
+                       ),
+                       type = "info",
+                       html = TRUE)
+      }
+    }
+    
+  })
     
     ## Creating the appointment schedules for Player 1/A 
     a_init_schedule <<- data.frame("Mon" = c("Type A", "Type B", "Type C"),
@@ -517,11 +667,14 @@ shinyServer(function(input, output, session) {
     
     observeEvent(input$a_input_schedule_cell_edit, {
         a_init_schedule <<- editData(a_init_schedule,input$a_input_schedule_cell_edit)
+        check_data_table_input(a_init_schedule)
         init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
                                      "b_init_schedule" = b_init_schedule)
         
         print(a_init_schedule)
     })
+    
+    
     
     ## Creating the appointment schedules for Player 2/B 
     b_init_schedule <<- data.frame("Mon" = c("Type A", "Type B", "Type C"),
@@ -542,6 +695,7 @@ shinyServer(function(input, output, session) {
     
     observeEvent(input$b_input_schedule_cell_edit, {
         b_init_schedule <<- editData(b_init_schedule,input$b_input_schedule_cell_edit)
+        check_data_table_input(b_init_schedule)
         init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
                                     "b_init_schedule" = b_init_schedule)
         print(b_init_schedule)

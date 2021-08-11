@@ -9,7 +9,7 @@ library(EnvStats)
 
 #Test input schedule
 
-a_init_schedule <- data.frame("Mon" = c("Type A", "Type B", "Type C"),
+a_init_schedule <- data.frame("Mon" = c("Type B", "Type B", "Type C"),
                               "Tue" = c("Type B", "Type A", "Type C"),
                               "Wed" = c("Type A", "Type B", "Type C"),
                               "Thu" = c("Type A", "Type B", "Type C"),
@@ -686,4 +686,75 @@ for(i in 1:number_or) {
              wait()%>%
              rollback(2)
    )
+}
+
+
+
+test_signals <- function(d, schedule_policy_OR1, schedule_policy_OR2, schedule_policy_OR3, init_schedule ) {
+   signals <- c()
+   d <- d
+   schedule_policy_OR1 <- schedule_policy_OR1 
+   schedule_policy_OR2 <- schedule_policy_OR2
+   schedule_policy_OR3 <- schedule_policy_OR3
+   inti_schedule <- init_schedule 
+   #IF open schedule policy for both then call the default types
+   if(schedule_policy_OR1 == "open" & schedule_policy_OR2 == "open" & schedule_policy_OR3 == "open") {
+      type_OR1 <- "a"
+      type_OR2 <- "b"
+      type_OR3 <- "c"
+      # IF block schedule policy call the ones that are assigned by the schedule 
+   } else if(schedule_policy_OR1 == "block" & schedule_policy_OR2 == "block" & schedule_policy_OR3 == "block") {
+      print("all block")
+      type_OR1 <- get_patient_type_from_schedule_d("OR1",d,init_schedule)
+      type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+      type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+   } else {
+      # IF modified block scheduling is chosen the open room has to take the other 
+      # patient type that is not assigned to a room at the beginning
+      if (get_patient_type_from_schedule_d("OR2", d, init_schedule) == "a" |
+          get_patient_type_from_schedule_d("OR2", d, init_schedule) == "b" ) {
+         if(get_patient_type_from_schedule_d("OR3", d, init_schedule) == "a" |
+            get_patient_type_from_schedule_d("OR3", d, init_schedule) == "b" ) {
+            # A and B are allocated then c has to start in the open room
+            print("Modified Block and : OR1 has to be C")
+            type_OR1 <- "c"
+            type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+            type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+         }
+      }
+      
+      if (get_patient_type_from_schedule_d("OR2", d, init_schedule) == "c" |
+          get_patient_type_from_schedule_d("OR2", d, init_schedule) == "b" ) {
+         if(get_patient_type_from_schedule_d("OR3", d, init_schedule) == "c" |
+            get_patient_type_from_schedule_d("OR3", d, init_schedule) == "b" ) {
+            # C and B are allocated then A has to start in the open room
+            print("Modified Block and : OR1 has to be A")
+            type_OR1 <- "a"
+            type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+            type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+         }
+      }
+      
+      if (get_patient_type_from_schedule_d("OR2", d, init_schedule) == "a" |
+          get_patient_type_from_schedule_d("OR2", d, init_schedule) == "c" ) {
+         if(get_patient_type_from_schedule_d("OR3", d, init_schedule) == "a" |
+            get_patient_type_from_schedule_d("OR3", d, init_schedule) == "c" ) {
+            # A and C are allocated then B has to start in the open room
+            print("Modified Block and : OR1 has to be b")
+            type_OR1 <- "b"
+            type_OR2 <- get_patient_type_from_schedule_d("OR2",d,init_schedule)
+            type_OR3 <- get_patient_type_from_schedule_d("OR3",d,init_schedule)
+         }
+      }
+   }
+   
+   
+   
+   
+   # Signals to send 
+   signals <- append(signals,paste0("patient_",type_OR1, 0, " ", "OR1 ", "Free"))
+   signals <- append(signals,paste0("patient_",type_OR2, 0, " ", "OR2 ", "Free"))
+   signals <- append(signals,paste0("patient_",type_OR3, 0, " ", "OR3 ", "Free"))
+   print(signals)
+   return(signals)   
 }
