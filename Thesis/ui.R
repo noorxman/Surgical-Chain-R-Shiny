@@ -2,6 +2,7 @@ library(shiny)
 library(shinyWidgets)
 library(DT)
 library(bslib)
+library(markdown)
 
 
 
@@ -159,7 +160,7 @@ navbarPage(title = "Navigation Bar",theme = light,
                               tags$h1("OR Appointment Scheduling"),
                               fluidRow(
                                   column(10, 
-                                         tags$h5("This is a serious game about the appointment scheduling of elective patients. The game shows off the effects different scheduling policys like 'Open', 'Block' and 'Modified Block' can have on the performance of the Operating Room, the access times of patients, and the Ward.
+                                         p("This is a serious game about the appointment scheduling of elective patients. The game shows off the effects different scheduling policys like 'Open', 'Block' and 'Modified Block' can have on the performance of the Operating Room, the access times of patients, and the Ward.
                                            Play this game with two players and see who can create the best schedule! If you are only one Player explore the different policys and schedules side by side!")
                                          ),
                                   column(2, offset = 10, 
@@ -259,5 +260,13 @@ navbarPage(title = "Navigation Bar",theme = light,
                         
                         )
                     ),
-           tabPanel("Manual"),
-           tabPanel("About"))
+           tabPanel("Manual",
+                    fluidRow(
+                        column(6, offset = 3,
+                               includeMarkdown("text/Manual.md"))
+                    )),
+           tabPanel("About",
+                    fluidRow(
+                        column(6, offset = 3,
+                               includeMarkdown("text/About.md"))
+                    )))
