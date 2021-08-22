@@ -72,6 +72,7 @@ hospital <- simmer("hospital")
 ### DEFINE TRAJECTORIES ###
 
 patient_normal <- trajectory("patients normal path") %>%
+   
       
       ## add consultation activity with doctor at oc
       log_("Begin OC") %>%
@@ -110,6 +111,7 @@ patient_normal <- trajectory("patients normal path") %>%
                    log_("Revisit Treatement done"))
 
 patient_normal_a <- trajectory("patients normal path") %>%
+   
       
       ## add consultation activity with doctor at oc
       log_("Begin OC") %>%
@@ -148,7 +150,7 @@ patient_normal_a <- trajectory("patients normal path") %>%
                    log_("Revisit Treatement done"))
 ### FILL THE HOSPITAL ENVIROMENT WITH RESOURCES AND GENERATORS ###
 patient_normal_b <- trajectory("patients normal path") %>%
-      
+   
       ## add consultation activity with doctor at oc
       log_("Begin OC") %>%
       seize("outpatient_clinic_b") %>%
@@ -186,7 +188,7 @@ patient_normal_b <- trajectory("patients normal path") %>%
                    log_("Revisit Treatement done"))
 
 patient_normal_c <- trajectory("patients normal path") %>%
-      
+   
       ## add consultation activity with doctor at oc
       log_("Begin OC") %>%
       seize("outpatient_clinic_c") %>%
@@ -223,6 +225,19 @@ patient_normal_c <- trajectory("patients normal path") %>%
                    release("outpatient_clinic_c") %>%
                    log_("Revisit Treatement done"))
 
+get_week_day <- function () {
+   n_day <- get_capacity(hospital, "Day_of_week")
+   switch (n_day,
+      day = "Mon",
+      day = "Tue",
+      day = "Wed",
+      day = "Thu",
+      day = "Fri"
+   )
+}
+
+week <- schedule(c(24,48,72,96,120), c(2,3,4,5,1), period = 120)
+
 hospital  %>%
       add_resource("outpatient_clinic_a",cap_oc) %>%
       add_resource("outpatient_clinic_b",cap_oc) %>%
@@ -233,7 +248,8 @@ hospital  %>%
       add_resource("ward", cap_wd) %>%
       add_generator("patient_A", patient_normal_a, arrival_rate_a, mon = 2) %>%
       add_generator("patient_B", patient_normal_b, arrival_rate_b, mon = 2) %>%
-      add_generator("patient_C", patient_normal_c, arrival_rate_c, mon = 2)
+      add_generator("patient_C", patient_normal_c, arrival_rate_c, mon = 2) %>%
+      add_resource("Day_of_week", week)
 
 ### RUN THE SIMULATION ###
 hospital %>% run(until = 100)
@@ -277,3 +293,14 @@ calculate_access_time_revisit <- function() {
 
 # Calculating the mean 
 mean(calculate_access_time_revisit()$waiting_time)
+
+func_ <- function(key_name) {
+   paste0("patient Type is", key_name)
+}
+
+types <- c("a","b")
+
+types %>% walk(~ assign(x = paste0("func_", .x),
+                          value = partial(func_, key_name = .x),
+                          envir = .GlobalEnv))
+

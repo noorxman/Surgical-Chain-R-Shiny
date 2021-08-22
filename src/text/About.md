@@ -38,3 +38,5 @@ For a more detailed elaboration on the learning goals and other aspects, please 
 
 ### What does the practical application of the tool look like?
 The tool makes use of the involvement of a game operator as specified in the conceptual framework. The game operator can be the consultant or teacher, possibly also the player. The operator is supposed to set the tool into different scenarios to bring across different learning goals e.g changing the arrival rate of one patient type to impact the performance of the players current schedule. The player is then challenged to adapt the schedule or policy to level the demand for beds at the ward. More information about how the game can be played and what settings can be changed are presented in the *Manual* page. 
+
+***About Page inspired by Philipp Ungrund***
