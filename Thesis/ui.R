@@ -96,9 +96,9 @@ render_operator_inputs_general <- function () {
                ), 
         column(4,
                numericInput("run_time","Set the run time of the simulation:",
-                            value = 200,
-                            min = 100,
-                            max = 600,
+                            value = 240,
+                            min = 120,
+                            max = 1000,
                             step = 50)
                )
         # column(4,

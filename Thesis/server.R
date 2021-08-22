@@ -212,43 +212,46 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     
     # Define Trajectories
     patients_path <- trajectory("patients_path") %>%
-        set_global("Entrance", values = 1,mod = "+") %>%
-        set_attribute("ID", function() {get_global(hospital, "Entrance")}) %>%
+        #set_global("Entrance", values = 1,mod = "+") %>%
+        #set_attribute("ID", function() {get_global(hospital, "Entrance")}) %>%
         seize("waiting_list") %>%
         #log_(function() {paste0("Message to be received: ",get_name(hospital), " ", "OR1 Free")}) %>%
         trap(signals = function() {paste0(get_name(hospital), " ", "OR1 Free")},
              handler = trajectory() %>%
-                 #log_("Message received") %>%
+                 log_("Message received") %>%
                  release("waiting_list") %>%
-                 simmer::select("OR1") #%>% log_("GOING OR1")
+                 simmer::select("OR1") 
+             %>% log_("GOING OR1")
              ,interruptible = FALSE
         ) %>%
         trap(signals = function() {paste0(get_name(hospital), " ", "OR2 Free")},
              handler = trajectory() %>%
-                 #log_("Message received") %>%
+                 log_("Message received") %>%
                  release("waiting_list") %>%
-                 simmer::select("OR2") #%>%log_("GOING OR2")
+                 simmer::select("OR2") 
+             %>%log_("GOING OR2")
              , interruptible = FALSE
         ) %>%
         trap(signals = function() {paste0(get_name(hospital), " ", "OR3 Free")},
              handler = trajectory() %>%
-               #log_("Message received") %>%
+               log_("Message received") %>%
                release("waiting_list") %>%
-               simmer::select("OR3") #%>%log_("GOING OR3")
+               simmer::select("OR3") 
+             %>%log_("GOING OR3")
              , interruptible = FALSE
         ) %>%
-        #log_("WAITING") %>%
+        log_("WAITING") %>%
         wait() %>% 
         #function(){sample(c("OR1", "OR2"),1)}
         
         seize_selected() %>%
         timeout(function () {
                 if (get_attribute(hospital, "type") == 1) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  0.3 , threshold = service_rate_a)
+                    rlnorm3(1, meanlog = log(5), sdlog =  0.4 , threshold = service_rate_a)
                 } else if(get_attribute(hospital, "type") == 2) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  0.3 , threshold = service_rate_b)
+                    rlnorm3(1, meanlog = log(5), sdlog =  0.4 , threshold = service_rate_b)
                 } else if(get_attribute(hosptial, "type") == 3) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  0.3 , threshold = service_rate_c)
+                    rlnorm3(1, meanlog = log(5), sdlog =  0.4 , threshold = service_rate_c)
                 }
             }
         ) %>%
@@ -256,18 +259,18 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         #define and update the last patient variable for the OR visited for the wait handler 
         #to be able to select the next patient in an open policy
         #compare the 
-        set_global(
-            keys = function() {
-                x <- get_selected(hospital)
-                paste0("Last_Patient_", x)},
-            values = function ()  get_attribute(hospital, "ID")
-        ) %>%
-        set_global(
-            keys = function() {
-                x <- get_selected(hospital)
-                paste0("Number_Of_Last_Patient_", x)},
-            values = function ()  as.numeric(gsub(".*?([0-9]+).*", "\\1", get_name(hospital)))
-        ) %>%
+        # set_global(
+        #     keys = function() {
+        #         x <- get_selected(hospital)
+        #         paste0("Last_Patient_", x)},
+        #     values = function ()  get_attribute(hospital, "ID")
+        # ) %>%
+        # set_global(
+        #     keys = function() {
+        #         x <- get_selected(hospital)
+        #         paste0("Number_Of_Last_Patient_", x)},
+        #     values = function ()  as.numeric(gsub(".*?([0-9]+).*", "\\1", get_name(hospital)))
+        # ) %>%
         #send/pull the next patient to the operating room
         send(signals = function () {
             if(get_selected(hospital) == "OR1") {
@@ -278,8 +281,8 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                 policy <- schedule_policy_OR3
             }  
             selecting_the_next_patient(policy,get_selected(hospital))}) %>%
-        #log_( function () paste0("LEAVING ", get_selected(hospital))) %>%
-        #log_("going to WARD") %>%
+        log_( function () paste0("LEAVING ", get_selected(hospital))) %>%
+        log_("going to WARD") %>%
         set_capacity("ward", 1, mod = "+") %>%
         seize("ward") %>%
         timeout(10) %>%
@@ -295,11 +298,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         trap("wait_for_patients_OR2",
              handler = trajectory() %>%
                  #Define variables as attrisbutes to be used 
-                 #log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
+                 log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
                  # set_attribute("current_entrance", function() get_global(hospital,"Entrance")) %>%
                  #Jump to the time of the next event that is of interest (arrival to the waiting list)
                  set_attribute("Time_to_next_event", function () time_to_next_event()) %>%
-                 #log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
+                 log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
                  leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
                  timeout_from_attribute("Time_to_next_event") %>%
                  send(function () {selecting_the_next_patient(schedule_policy_OR2, "OR2")}) %>%
@@ -307,7 +310,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                  
                  #check if the someone actually came to the OR1 
                  simmer::rollback(7, check = function() {
-                     #print(paste0("OR 2 server count: ", get_server_count(hospital, "OR2")))  
+                     print(paste0("OR 2 server count: ", get_server_count(hospital, "OR2")))  
                      if(get_server_count(hospital, "OR2") == 1) FALSE else TRUE})
              
         ) %>%
@@ -319,11 +322,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         trap("wait_for_patients_OR1",
              handler = trajectory() %>%
                  #Define variables as attributes to be used 
-                 #log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
+                 log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
                  # set_attribute("current_entrance", function() get_global(hospital,"Entrance")) %>%
                  #Jump to the time of the next event that is of interest (arrival to the waiting list)
                  set_attribute("Time_to_next_event", function () time_to_next_event()) %>%
-                 #log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
+                 log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
                  leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
                  timeout_from_attribute("Time_to_next_event") %>%
                  send(function () {selecting_the_next_patient(schedule_policy_OR1, "OR1")}) %>%
@@ -331,7 +334,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                  
                  #check if the someone actually came to the OR1 
                  simmer::rollback(7, check = function() {
-                     #print(paste0("OR 1 server count: ",get_server_count(hospital, "OR1")))  
+                     print(paste0("OR 1 server count: ",get_server_count(hospital, "OR1")))  
                      if(get_server_count(hospital, "OR1") == 1) FALSE else TRUE})
              
         ) %>%
@@ -343,11 +346,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
       trap("wait_for_patients_OR3",
            handler = trajectory() %>%
              #Define variables as attributes to be used 
-             #log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
+             log_(function ()  paste0("Time now: ",as.character(now(hospital)))) %>%
              # set_attribute("current_entrance", function() get_global(hospital,"Entrance")) %>%
              #Jump to the time of the next event that is of interest (arrival to the waiting list)
              set_attribute("Time_to_next_event", function () time_to_next_event()) %>%
-             #log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
+             log_( function () paste0("Time to the next event: ",as.character(get_attribute(hospital,'Time_to_next_event')))) %>%
              leave(function () {if(get_attribute(hospital,"Time_to_next_event") == -1) 100 else 0 }) %>%
              timeout_from_attribute("Time_to_next_event") %>%
              send(function () {selecting_the_next_patient(schedule_policy_OR3, "OR3")}) %>%
@@ -355,7 +358,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
              
              #check if the someone actually came to the OR1 
              simmer::rollback(7, check = function() {
-               #print(paste0("OR 3 server count: ",get_server_count(hospital, "OR3")))  
+               print(paste0("OR 3 server count: ",get_server_count(hospital, "OR3")))  
                if(get_server_count(hospital, "OR3") == 1) FALSE else TRUE})
            
       ) %>%
@@ -421,7 +424,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
             signals <- append(signals,paste0("patient_",type_OR1, 0, " ", "OR1 ", "Free"))
             signals <- append(signals,paste0("patient_",type_OR2, 0, " ", "OR2 ", "Free"))
             signals <- append(signals,paste0("patient_",type_OR3, 0, " ", "OR3 ", "Free"))
-            #print(signals)
+            print(signals)
             return(signals)   
         }
         )
@@ -445,8 +448,8 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     
     for (i in seq(number_or)) {
         hospital %>%
-            add_resource(name = paste0("OR", i), capacity = 1) %>%
-            add_global(paste0("Last_Patient_","OR", i), 0)     
+            add_resource(name = paste0("OR", i), capacity = 1) 
+      #%>%add_global(paste0("Last_Patient_","OR", i), 0)     
         
     }
     
@@ -467,8 +470,8 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         add_generator("patient_b", patients_path_b,from(0, function () rexp(1,inter_arrival_rate_b)) , mon = 2) %>% #at(0,2,4)
       add_generator("patient_c", patients_path_c,from(0, function () rexp(1,inter_arrival_rate_c)) , mon = 2) %>% #at(0,2,4)
         add_generator("signaler", t_signaler, at(0)) %>%
-        add_global("Entrance", 0) %>%
-        add_global("Next_Event",0) %>% 
+        #add_global("Entrance", 0) %>%
+        #add_global("Next_Event",0) %>% 
         add_resource("Day_of_week", week) %>%
         
         # Run the simulation 
@@ -494,8 +497,9 @@ plot_access_time <- function(simulation) {
         dplyr::summarise(mean = mean(access_time),
                          min  = min(access_time),
                          max  = max(access_time),
-                         median = median(access_time),
-                         n = n())
+                         median = median(access_time)
+                         #,n = n()
+                         )
 }
 
 plot_utilization <- function(simulation) {
@@ -554,7 +558,7 @@ plot_idle_time <- function(simulation) {
         dplyr::filter(type == "a" | type == "b" | type == "c" )
     
     ggplot(idle_time_resource_type_data, aes(x= type, y = idle_time)) + geom_col() +
-    labs(x = "Type", y = "Idle Time (in %)", title = "Idle Time per Speciality Type") + theme_bw(base_size =  20)
+    labs(x = "Type", y = "Idle Time", title = "Idle Time per Speciality Type") + theme_bw(base_size =  20)
 }
 
 
