@@ -11,10 +11,13 @@ src/
       ├── Explain_Inputs.png 
       └── Schematic_Simulation.png 
  └── legacy/  
-      ├── About.md  
-      ├── Manual.md
-      ├── Explain_Inputs.png 
-      └── Schematic_Simulation.png
+      ├── Calendar_Example
+      ├── OR_Scheduling
+      ├── Oversteer 
+      ├── Simulation_Models
+      ├── Surgical_Chain
+      └── Test_Files
+      
  README.md  
 </pre>
 
@@ -35,4 +38,4 @@ src/
 
 **Schematic_Simulation.png** PNG file that showcases the underlying simulation. 
 
-**legacy/** This folder contains previous iterations and prototypes of the tool and of different simualtions.
+**legacy/** This folder contains folders that contain previous iterations and prototypes of the tool and of different simualtions. Deprecated.
