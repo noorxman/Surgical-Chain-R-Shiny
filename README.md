@@ -1,5 +1,5 @@
 # Surgical-Chain-R-Shiny
-This is an eucational tool, developed in R Shiny and with the discrete event simulaiton package R simmer, with the goal of teaching the effects different appointment scheduling policys have on the performance of an operating room at a hospital. 
+This is an educational tool, developed in R Shiny and with the discrete event simulation package R simmer, with the goal of teaching the effects different appointment scheduling polices have on the performance of an operating room at a hospital. 
 
 <pre>
 src/  
@@ -21,7 +21,7 @@ src/
 
 **src/** Directory with the source code.
 
-**server.R** The server side of the tool; one of the two parts of the shiny application. Handles the inputs from the user, creates/runs the simulation and ouputs the results to the UI.
+**server.R** The server side of the tool; one of the two parts of the shiny application. Handles the inputs from the user, creates/runs the simulation and outputs the results to the UI.
 
 **ui.R** The user interface of the tool; one of the two parts of the shiny application. The user interface is a web page with multiple tabs including the players page, operators page, manual page and about page. 
 
@@ -35,4 +35,4 @@ src/
 
 **Schematic_Simulation.png** PNG file that showcases the underlying simulation. 
 
-**legacy/** This folder contains previous iterations and prototypes of the tool and of different simualtions.
+**legacy/** This folder contains previous iterations and prototypes of the tool and of different simulations.
