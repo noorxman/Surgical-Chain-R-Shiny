@@ -22,6 +22,7 @@ varparamNames <- c("policy")
 
 fixparamNames <- c("mean_inter_arrival_a", "mean_inter_arrival_b", "mean_inter_arrival_c",
                 "mean_service_rate_a", "mean_service_rate_b", "mean_service_rate_c",
+                "variability", #"cv_a", "cv_b", "cv_c", 
                 "seed_value", "ward_capacity", "run_time")
 
 
@@ -51,7 +52,9 @@ get_patient_type_from_schedule_d <- function (or, d, init_schedule) {
 simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                               mean_inter_arrival_b = 5, mean_inter_arrival_c  = 5,
                               mean_service_rate_a = 5.1, mean_service_rate_b = 5.1,
-                              mean_service_rate_c = 5.1,  number_or = 3,
+                              mean_service_rate_c = 5.1,
+                              variability = FALSE, cv_a = 0.3, cv_b = 0.3, cv_c = 0.3 , 
+                              number_or = 3,
                               seed_value = 1, ward_capacity = 5, run_time = 200) {
     #-------------------------------------
     # Inputs
@@ -59,6 +62,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     
     init_schedule = init_schedule
     ward_capacity <<- ward_capacity
+    variability <<- variability
     
     # Possion process with exponential inter arrival times 
     inter_arrival_rate_a = 1/mean_inter_arrival_a 
@@ -69,6 +73,17 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     service_rate_a  = mean_service_rate_a - 5
     service_rate_b  = mean_service_rate_b - 5
     service_rate_c  = mean_service_rate_c - 5
+    #Standart deviations based on coefficient of variation
+    if(variability == FALSE) {
+      service_st_dev_a = 1
+      service_st_dev_b = 1
+      service_st_dev_c = 1
+    } else {
+      service_st_dev_a = cv_a * mean_service_rate_a
+      service_st_dev_b = cv_b * mean_service_rate_b
+      service_st_dev_c = cv_c * mean_service_rate_c
+    }
+    
     # Policies are created later 
     policy = policy
     
@@ -247,11 +262,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         seize_selected() %>%
         timeout(function () {
                 if (get_attribute(hospital, "type") == 1) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  0.4 , threshold = service_rate_a)
+                    rlnorm3(1, meanlog = log(5), sdlog =  log(service_st_dev_a) , threshold = service_rate_a)
                 } else if(get_attribute(hospital, "type") == 2) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  0.4 , threshold = service_rate_b)
+                    rlnorm3(1, meanlog = log(5), sdlog =  log(service_st_dev_b) , threshold = service_rate_b)
                 } else if(get_attribute(hosptial, "type") == 3) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  0.4 , threshold = service_rate_c)
+                    rlnorm3(1, meanlog = log(5), sdlog =  log(service_st_dev_c) , threshold = service_rate_c) #rate used: 0.4
                 }
             }
         ) %>%
@@ -283,11 +298,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
             selecting_the_next_patient(policy,get_selected(hospital))}) %>%
         log_( function () paste0("LEAVING ", get_selected(hospital))) %>%
         log_("going to WARD") %>%
-        set_capacity("ward", 1, mod = "+") %>%
+        #set_capacity("ward", 1, mod = "+") %>%
         seize("ward") %>%
-        timeout(10) %>%
-        release("ward") %>%
-        set_capacity("ward", -1, mod = "+") #%>%log_("Leaving WARD")
+        timeout(4) %>%
+        release("ward") #%>%
+        #set_capacity("ward", -1, mod = "+") #%>%log_("Leaving WARD")
         
     
     
@@ -444,7 +459,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     
     hospital %>%
         add_resource(name = "waiting_list", capacity = Inf) %>%
-        add_resource(name = "ward", capacity = 0, queue_size = 0)
+        add_resource(name = "ward", capacity = ward_capacity, queue_size = 0)
     
     for (i in seq(number_or)) {
         hospital %>%
@@ -465,10 +480,13 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     hospital %>%
         add_generator("wait_handler_OR1", wait_for_patients_handler_OR1, at(0), mon = 2) %>%
         add_generator("wait_handler_OR2", wait_for_patients_handler_OR2, at(0), mon = 2) %>%
-      add_generator("wait_handler_OR3", wait_for_patients_handler_OR3, at(0), mon = 2) %>%
-        add_generator("patient_a", patients_path_a,from(0, function () rexp(1,inter_arrival_rate_a)), mon = 2) %>% # at(0,1,3)  
-        add_generator("patient_b", patients_path_b,from(0, function () rexp(1,inter_arrival_rate_b)) , mon = 2) %>% #at(0,2,4)
-      add_generator("patient_c", patients_path_c,from(0, function () rexp(1,inter_arrival_rate_c)) , mon = 2) %>% #at(0,2,4)
+        add_generator("wait_handler_OR3", wait_for_patients_handler_OR3, at(0), mon = 2) %>%
+        add_generator("patient_a", patients_path_a,from(0, function (){
+          if(variability == FALSE) {5} else {rexp(1,inter_arrival_rate_a)}}), mon = 2) %>% # at(0,1,3)  
+        add_generator("patient_b", patients_path_b,from(0, function (){
+          if(variability == FALSE) {5} else {rexp(1,inter_arrival_rate_b)}}) , mon = 2) %>% #at(0,2,4)
+        add_generator("patient_c", patients_path_c,from(0, function (){
+          if(variability == FALSE) {5} else {rexp(1,inter_arrival_rate_c)}}) , mon = 2) %>% #at(0,2,4)
         add_generator("signaler", t_signaler, at(0)) %>%
         #add_global("Entrance", 0) %>%
         #add_global("Next_Event",0) %>% 
@@ -519,6 +537,8 @@ plot_utilization <- function(simulation) {
 plot_bed_shortages <- function (simulation) {
     resource_data <- get_mon_resources(simulation)
     
+    
+    
     bed_shortage_data <- resource_data %>%
         dplyr::filter(resource == "ward") %>%
         dplyr::filter(server > ward_capacity) %>%
@@ -530,6 +550,7 @@ plot_occupancy <- function(simulation, resource_type) {
     occupancy_data <- resource_data %>%
         dplyr::filter(resource == resource_type)
     if(resource_type == "ward") {
+      print(occupancy_data)
       ggplot(occupancy_data, aes(y = server,x = time)) + geom_line() +
         geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
         guides(color=FALSE) +
@@ -650,7 +671,23 @@ shinyServer(function(input, output, session) {
     }
     
   })
-    
+  
+  observe(if(input$variability == FALSE) {
+    sendSweetAlert(session,
+                   title = "Deterministic Enviroment",
+                   text = tags$div(
+                     "You have turned off the variability, which makes the simulation deterministic now!",
+                     tags$br(),
+                     "Inter Arrival Time: 5 mins.",
+                     tags$br(), 
+                     "Service Time: 5 mins", 
+                     tags$br(),
+                     "Please make sure that you choose the 'Block Scheduling Policy'."
+                   ),
+                   type = "info",
+                   html = TRUE) 
+  })
+  
     ## Creating the appointment schedules for Player 1/A 
     a_init_schedule <<- data.frame("Mon" = c("Type A", "Type B", "Type C"),
                                   "Tue" = c("Type A", "Type B", "Type C"),
