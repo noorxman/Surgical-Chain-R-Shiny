@@ -17,12 +17,12 @@ library(EnvStats)
 
 #paramNames <- c("init_schedule", "policy", "number_or", "inter_arrival_rate_a",
                 # "inter_arrival_rate_b", "inter_arrival_rate_c", "service_rate", "run_time")
-
-varparamNames <- c("policy")
-
+# variables that are different for each player
+varparamNames <- c("policy", "variability")
+# variables that are fixed for each player
 fixparamNames <- c("mean_inter_arrival_a", "mean_inter_arrival_b", "mean_inter_arrival_c",
                 "mean_service_rate_a", "mean_service_rate_b", "mean_service_rate_c",
-                "variability", "warmup_period", #"cv_a", "cv_b", "cv_c", 
+                "warmup_period", #"cv_a", "cv_b", "cv_c", 
                 "seed_value", "ward_capacity", "run_time")
 
 
@@ -62,7 +62,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     # var also needed for the creation of the graphs outside this function
     init_schedule = init_schedule
     ward_capacity <<- ward_capacity
-    variability <<- variability
+    #variability <<- variability
     warmup_period <<- warmup_period
     
     # Possion process with exponential inter arrival times 
@@ -678,7 +678,7 @@ shinyServer(function(input, output, session) {
     
   })
   
-  observe(if(input$variability == FALSE) {
+  observe(if(input$a_variability == FALSE | input$b_variability == FALSE ) {
     sendSweetAlert(session,
                    title = "Deterministic Enviroment",
                    text = tags$div(

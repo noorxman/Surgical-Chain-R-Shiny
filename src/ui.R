@@ -225,14 +225,22 @@ navbarPage(title = "Navigation Bar",theme = light,
                         fluidRow(column(6,tags$h3("Arrival Rates")), column(6, tags$h3("Service Rates"))),
                         hr(),
                         wellPanel(
-                            fluidRow(column(4, offset = 4,
+                            fluidRow(column(6,
                                             prettySwitch(
-                                                inputId = "variability",
-                                                label = "Variability of Arrivals and Service Rates ON or OFF?", 
+                                                inputId = "a_variability",
+                                                label = "Variability of Arrivals and Service Rates for Player 1 ON or OFF?", 
                                                 status = "success",
                                                 value = TRUE,
                                                 fill = TRUE)
-                                            )
+                                            ),
+                                     column(6,
+                                            prettySwitch(
+                                                inputId = "b_variability",
+                                                label = "Variability of Arrivals and Service Rates for Player 2 ON or OFF?", 
+                                                status = "success",
+                                                value = TRUE,
+                                                fill = TRUE)
+                                     )
                             ), 
                             render_operator_inputs_type("a"),
                             render_operator_inputs_type("b"),
