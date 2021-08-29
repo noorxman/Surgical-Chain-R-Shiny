@@ -22,7 +22,7 @@ varparamNames <- c("policy")
 
 fixparamNames <- c("mean_inter_arrival_a", "mean_inter_arrival_b", "mean_inter_arrival_c",
                 "mean_service_rate_a", "mean_service_rate_b", "mean_service_rate_c",
-                "variability", #"cv_a", "cv_b", "cv_c", 
+                "variability", "warmup_period", #"cv_a", "cv_b", "cv_c", 
                 "seed_value", "ward_capacity", "run_time")
 
 
@@ -52,17 +52,18 @@ get_patient_type_from_schedule_d <- function (or, d, init_schedule) {
 simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                               mean_inter_arrival_b = 5, mean_inter_arrival_c  = 5,
                               mean_service_rate_a = 5.1, mean_service_rate_b = 5.1,
-                              mean_service_rate_c = 5.1,
+                              mean_service_rate_c = 5.1, warmup_period,
                               variability = FALSE, cv_a = 0.3, cv_b = 0.3, cv_c = 0.3 , 
                               number_or = 3,
                               seed_value = 1, ward_capacity = 5, run_time = 200) {
     #-------------------------------------
     # Inputs
     #-------------------------------------    
-    
+    # var also needed for the creation of the graphs outside this function
     init_schedule = init_schedule
     ward_capacity <<- ward_capacity
     variability <<- variability
+    warmup_period <<- warmup_period
     
     # Possion process with exponential inter arrival times 
     inter_arrival_rate_a = 1/mean_inter_arrival_a 
@@ -506,6 +507,7 @@ plot_access_time <- function(simulation) {
     
     acc_arrival_data <- arrival_data %>%
         dplyr::filter(!name == "signaler0") %>%
+        dplyr::filter(start_time >= warmup_period) %>%
         dplyr::mutate(access_time = end_time - start_time - activity_time)
     
     #print(acc_arrival_data) debugging
@@ -525,6 +527,7 @@ plot_utilization <- function(simulation) {
     #print(resource_data) debugging
     
     util_resource_data <- resource_data %>%
+        dplyr::filter(time >= warmup_period) %>%
         dplyr::group_by(resource) %>%
         dplyr::mutate(dt = time - dplyr::lag(time)) %>%
         dplyr::mutate(capacity = ifelse(capacity < server, server, capacity)) %>%
@@ -540,6 +543,7 @@ plot_bed_shortages <- function (simulation) {
     
     
     bed_shortage_data <- resource_data %>%
+        dplyr::filter(time >= warmup_period) %>%
         dplyr::filter(resource == "ward") %>%
         dplyr::filter(server > ward_capacity) %>%
         dplyr::summarise(Max_Beds_short = max(server) - ward_capacity , Number_of_shortages = n())
@@ -548,6 +552,7 @@ plot_bed_shortages <- function (simulation) {
 plot_occupancy <- function(simulation, resource_type) {
     resource_data <- get_mon_resources(simulation)
     occupancy_data <- resource_data %>%
+        dplyr::filter(time >= warmup_period) %>%
         dplyr::filter(resource == resource_type)
     if(resource_type == "ward") {
       print(occupancy_data)
@@ -568,6 +573,7 @@ plot_idle_time <- function(simulation) {
     resource_data <- get_mon_resources(simulation)
     
     idle_time_resource_type_data <- resource_data %>%
+        dplyr::filter(time >= warmup_period) %>%
         dplyr::mutate(day = (day(seconds_to_period(time * 60 * 60)) %% 5) + 1) %>%
         dplyr::filter(resource == "OR1" | resource == "OR2" | resource == "OR3") %>%
         dplyr::mutate(type = mapply( function (resource,day) get_patient_type_from_schedule_d(resource,day, a_init_schedule), resource, day))  %>%
@@ -680,7 +686,7 @@ shinyServer(function(input, output, session) {
                      tags$br(),
                      "Inter Arrival Time: 5 mins.",
                      tags$br(), 
-                     "Service Time: 5 mins", 
+                     "Service Time: 5 mins.", 
                      tags$br(),
                      "Please make sure that you choose the 'Block Scheduling Policy'."
                    ),

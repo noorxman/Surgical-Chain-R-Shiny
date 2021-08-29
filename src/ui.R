@@ -100,14 +100,14 @@ render_operator_inputs_general <- function () {
                             min = 120,
                             max = 1000,
                             step = 50)
-               )
-        # column(4,
-        #        numericInput("warmup_period","Set the warmup period of the simulation:",
-        #                     value = 0,
-        #                     min = 0,
-        #                     max = 400,
-        #                     step = 50)
-        # )
+               ),
+        column(4,
+               numericInput("warmup_period","Set the warmup period of the simulation:",
+                            value = 0,
+                            min = 0,
+                            max = 400,
+                            step = 50)
+        )
         )
         # column(6,
         #        awesomeCheckbox(
