@@ -693,6 +693,21 @@ shinyServer(function(input, output, session) {
                    type = "info",
                    html = TRUE) 
   })
+  # Change settings if a input scenario is chosen
+  observeEvent(input$scenario,{
+    if(input$scenario == "Impact of Variability") {
+      # turn off variability for player A/1
+      updateSwitchInput(session, "a_variability", value = FALSE)
+      updateSwitchInput(session, "b_variability", value = TRUE)
+      #select block scheduling for both
+      updateRadioGroupButtons(session, "a_policy", selected = 2)
+      updateRadioGroupButtons(session, "b_policy", selected = 2)   
+      # Adjust genreal settings
+      updateNumericInput(session, "seed_value", value = 5)
+      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "warmup_period", value = 100)
+    }
+  })
   
     ## Creating the appointment schedules for Player 1/A 
     a_init_schedule <<- data.frame("Mon" = c("Type A", "Type B", "Type C"),

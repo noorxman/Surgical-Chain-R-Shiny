@@ -224,7 +224,17 @@ navbarPage(title = "Navigation Bar",theme = light,
                             ),
                             hr(),
                             fluidRow(
-                                column(4, offset = 4,
+                                column(4,
+                                       pickerInput(
+                                           inputId = "scenario",
+                                           label = tags$b("Choose a Scenario to explore learning goals"), 
+                                           choices = c("Impact of Variability", "Open vs Block Scheduling",
+                                                       "Block vs Modified Block Scheduling", "Open vs Modified Block Scheduling"),
+                                           options = list(
+                                               title = "Scenario")
+                                       )
+                                ),
+                                column(4, #offset = 4,
                                        actionBttn(
                                            inputId = "run",
                                             label = "Run the Simulation",
