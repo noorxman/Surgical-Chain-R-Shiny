@@ -88,7 +88,7 @@ render_operator_inputs_general <- function () {
     wellPanel(
     fluidRow(
         column(4, 
-               numericInput("seed_value","Set the seed value for the generation of simulated random values:",
+               numericInput("seed_value","Set the seed value for the generation of random values:",
                                     value = 1,
                                     min = 1,
                                     max = 200,
@@ -117,6 +117,40 @@ render_operator_inputs_general <- function () {
         #            status = "danger"
         #        ))
         )
+        
+}
+
+render_operator_inputs_variability <- function() {
+    wellPanel(
+        fluidRow(
+            column(6,tags$h5("Player 1 Arrival/Service Rate")),
+            column(6,
+                    switchInput(
+                        inputId = "a_variability",
+                        label = "Variability", 
+                        onStatus = "success",
+                        offStatus = "danger",
+                        value = TRUE
+                        #fill = TRUE
+                    )
+                    )
+            
+        ),
+        fluidRow(
+            column(6,tags$h5("Player 2 Arrival/Service Rate:")),
+            column(6,
+                   switchInput(
+                       inputId = "b_variability",
+                       label = "Variability", 
+                       onStatus = "success",
+                       offStatus = "danger",
+                       value = TRUE
+                       #fill = TRUE
+                   )
+            )
+        )
+    )
+    
         
 }
 
@@ -224,37 +258,22 @@ navbarPage(title = "Navigation Bar",theme = light,
                         hr(),
                         fluidRow(column(6,tags$h3("Arrival Rates")), column(6, tags$h3("Service Rates"))),
                         hr(),
-                        wellPanel(
-                            fluidRow(column(6,
-                                            prettySwitch(
-                                                inputId = "a_variability",
-                                                label = "Variability of Arrivals and Service Rates for Player 1 ON or OFF?", 
-                                                status = "success",
-                                                value = TRUE,
-                                                fill = TRUE)
-                                            ),
-                                     column(6,
-                                            prettySwitch(
-                                                inputId = "b_variability",
-                                                label = "Variability of Arrivals and Service Rates for Player 2 ON or OFF?", 
-                                                status = "success",
-                                                value = TRUE,
-                                                fill = TRUE)
-                                     )
-                            ), 
+                        wellPanel( 
                             render_operator_inputs_type("a"),
                             render_operator_inputs_type("b"),
                             render_operator_inputs_type("c")
                         ),
                         fluidRow(
-                            column(6,tags$h3("Capacity of Hospital")), 
-                            column(6, tags$h3("General Settings"))
+                            column(3, tags$h3("Capacity of Hospital")),
+                            column(4, tags$h3("Variability")), 
+                            column(5, tags$h3("General Settings"))
                             ),
                         hr(),
                        
                         fluidRow(
-                            column(6,render_operator_inputs_capacity()),
-                            column(6,render_operator_inputs_general())
+                            column(3,render_operator_inputs_capacity()),
+                            column(4,render_operator_inputs_variability()),
+                            column(5,render_operator_inputs_general())
                             ), 
                         flowLayout(
                             column(12, 
