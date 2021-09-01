@@ -229,7 +229,7 @@ navbarPage(title = "Navigation Bar",theme = light,
                                            inputId = "scenario",
                                            label = tags$b("Choose a Scenario to explore learning goals"), 
                                            choices = c("Impact of Variability", "Open vs Block Scheduling",
-                                                       "Block vs Modified Block Scheduling", "Open vs Modified Block Scheduling"),
+                                                       "Block vs Mixed Block Scheduling", "Open vs Mixed Block Scheduling"),
                                            options = list(
                                                title = "Scenario")
                                        )

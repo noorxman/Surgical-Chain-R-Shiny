@@ -706,8 +706,79 @@ shinyServer(function(input, output, session) {
       updateNumericInput(session, "seed_value", value = 5)
       updateNumericInput(session, "run_time", value = 300)
       updateNumericInput(session, "warmup_period", value = 100)
+    } else if(input$scenario == "Open vs Block Scheduling"){
+      # turn on variability for all of them
+      updateSwitchInput(session, "a_variability", value = TRUE)
+      updateSwitchInput(session, "b_variability", value = TRUE)
+      #select block scheduling for a and select open for b
+      updateRadioGroupButtons(session, "a_policy", selected = 2)
+      updateRadioGroupButtons(session, "b_policy", selected = 1)
+      # Adjust genreal settings
+      updateNumericInput(session, "seed_value", value = 5)
+      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "warmup_period", value = 100)
+    } else if(input$scenario == "Block vs Mixed Block Scheduling"){
+      # turn on variability for all of them
+      updateSwitchInput(session, "a_variability", value = TRUE)
+      updateSwitchInput(session, "b_variability", value = TRUE)
+      #select block scheduling for a and select open for b
+      updateRadioGroupButtons(session, "a_policy", selected = 2)
+      updateRadioGroupButtons(session, "b_policy", selected = 3)
+      # Adjust genreal settings
+      updateNumericInput(session, "seed_value", value = 5)
+      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "warmup_period", value = 100)
+      #update schedule of player b because it follows mixed policy
+      schedule_edits <- data.frame(row = c(2,2,3),
+                                    col = c(2,3,5), 
+                                    value = c("Type A","Type A","Type A")
+                                   )
+      b_init_schedule <<- editData(b_init_schedule,schedule_edits)
+      print(b_init_schedule)
+      output$b_input_schedule = renderDT(
+        b_init_schedule,
+        editable = "cell",
+        autoHideNavigation = TRUE,
+        options = list(dom = 't'),
+        class = "cell-border stripe"
+      )
+      init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
+                                   "b_init_schedule" = b_init_schedule)
+      
+    } else if(input$scenario == "Open vs Mixed Block Scheduling") {
+      # turn on variability for all of them
+      updateSwitchInput(session, "a_variability", value = TRUE)
+      updateSwitchInput(session, "b_variability", value = TRUE)
+      #select open scheduling for a and select mixed for b
+      updateRadioGroupButtons(session, "a_policy", selected = 1)
+      updateRadioGroupButtons(session, "b_policy", selected = 3)
+      # Adjust genreal settings
+      updateNumericInput(session, "seed_value", value = 5)
+      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "warmup_period", value = 100)
+      #update schedule of player b because it follows mixed policy
+      schedule_edits <- data.frame(row = c(2,2,3),
+                                   col = c(2,3,5), 
+                                   value = c("Type A","Type A","Type A")
+      )
+      b_init_schedule <<- editData(b_init_schedule,schedule_edits)
+      print(b_init_schedule)
+      output$b_input_schedule = renderDT(
+        b_init_schedule,
+        editable = "cell",
+        autoHideNavigation = TRUE,
+        options = list(dom = 't'),
+        class = "cell-border stripe"
+      )
+      init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
+                                   "b_init_schedule" = b_init_schedule)
+      
     }
-  })
+      
+      
+    }
+    
+  )
   
     ## Creating the appointment schedules for Player 1/A 
     a_init_schedule <<- data.frame("Mon" = c("Type A", "Type B", "Type C"),
@@ -728,6 +799,7 @@ shinyServer(function(input, output, session) {
     
     observeEvent(input$a_input_schedule_cell_edit, {
         a_init_schedule <<- editData(a_init_schedule,input$a_input_schedule_cell_edit)
+        print(input$a_input_schedule_cell_edit)
         check_data_table_input(a_init_schedule)
         init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
                                      "b_init_schedule" = b_init_schedule)
