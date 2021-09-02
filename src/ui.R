@@ -168,7 +168,6 @@ renderOutputs <- function(prefix) {
         fluidRow(column(12,tags$h4("Bed Shortages"),
                         br(),
                         tableOutput(paste0(prefix, "_", "bedShortage")))),
-        
         fluidRow(column(12, tags$h3("Explanatory Measures"))),
         hr(), 
         fluidRow(column(12,tags$h4("Waiting List Length"),
@@ -176,6 +175,8 @@ renderOutputs <- function(prefix) {
                         plotOutput( paste0(prefix, "_", "lengthOfWaitingList")))),
         br(),
         fluidRow(column(12,tags$h4("Bed Occupancy at the Ward"),
+                        br(),
+                        plotOutput( paste0(prefix, "_", "bedOccupancy_total")),
                         br(),
                         plotOutput( paste0(prefix, "_", "bedOccupancy")))),
         br(),
@@ -229,7 +230,8 @@ navbarPage(title = "Navigation Bar",theme = light,
                                            inputId = "scenario",
                                            label = tags$b("Choose a Scenario to explore the learning goals"), 
                                            choices = c("Impact of Variability", "Block vs Open Scheduling",
-                                                       "Block vs Mixed Block Scheduling", "Open vs Mixed Block Scheduling"),
+                                                       "Block vs Mixed Block Scheduling", "Open vs Mixed Block Scheduling",
+                                                       "Impact on Ward"),
                                            options = list(
                                                title = "Scenario")
                                        )

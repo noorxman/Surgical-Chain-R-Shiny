@@ -300,6 +300,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         log_( function () paste0("LEAVING ", get_selected(hospital))) %>%
         log_("going to WARD") %>%
         #set_capacity("ward", 1, mod = "+") %>%
+        set_global("Ward_Occupancy_total", values = 1, mod = "+") %>%
         set_global(keys = 
                      function() {
                        if(get_attribute(hospital, "type") == 1) {
@@ -311,8 +312,9 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
                        }
                      }, values = 1, mod = "+") %>%
         seize("ward") %>%
-        timeout(4) %>%
+        timeout(10) %>%
         release("ward") %>%
+        set_global("Ward_Occupancy_total", values = -1, mod = "+") %>%
         set_global(keys = 
                    function() {
                      if(get_attribute(hospital,"type") == 1) {
@@ -480,7 +482,7 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     
     hospital %>%
         add_resource(name = "waiting_list", capacity = Inf) %>%
-        add_resource(name = "ward", capacity = ward_capacity, queue_size = 0) %>%
+        add_resource(name = "ward", capacity = Inf , queue_size = 0) %>%
         add_global("Ward_Occupancy_A", 0) %>%
         add_global("Ward_Occupancy_B", 0) %>%
         add_global("Ward_Occupancy_C", 0) 
@@ -572,19 +574,88 @@ plot_bed_shortages <- function (simulation) {
         dplyr::summarise(Max_Beds_short = max(server) - ward_capacity , Number_of_shortages = n())
 }
 
+plot_ward_occupancy <- function(simulation) {
+  occupancy_data <- get_mon_resources(simulation) %>%
+    dplyr::filter(time >= warmup_period) %>%
+    dplyr::filter(resource == "ward") 
+  
+  ggplot() +
+    geom_step(data = occupancy_data, aes(y = server,x = time)) +
+    geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
+    guides(color=FALSE) +
+    labs(x = "Time", y = "Bed Occupancy", title = "Total Bed Occupancy in the Ward") + 
+    theme_bw(base_size = 20) +
+    theme(legend.position = "bottom", plot.margin = unit(c(0.3,0.3,0.3,0.3), "cm"))
+}
+
 plot_occupancy <- function(simulation, resource_type) {
     resource_data <- get_mon_resources(simulation)
+    
     occupancy_data <- resource_data %>%
         dplyr::filter(time >= warmup_period) %>%
-        dplyr::filter(resource == resource_type)
+        dplyr::filter(resource == resource_type) 
+    print(occupancy_data)
+    
     if(resource_type == "ward") {
-      print(occupancy_data)
-      print(get_mon_attributes(simulation))
-      ggplot(occupancy_data, aes(y = server,x = time)) + geom_line() +
-        geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
+      occupancy_data <- occupancy_data %>% 
+        dplyr::select(time, resource, server) %>%
+        dplyr::rename(key = resource)
+      
+      ward_occupancy <- get_mon_attributes(simulation) %>%
+        dplyr::filter(time >= warmup_period) %>%
+        dplyr::filter(key == "Ward_Occupancy_A" |key == "Ward_Occupancy_B" |key == "Ward_Occupancy_C") %>% #key == "Ward_Occupancy_total"
+        dplyr::select(time, key, value) %>%
+        dplyr::rename(server = value)
+        # dplyr::group_by(time, key) %>%
+        # dplyr::summarise(n =)
+        # dplyr::group_by(time, key)
+        # dplyr::summarise(n = sum(value))
+        # dplyr::mutate(percentage = n/sum(n_time))
+      
+      #ward_table <- dplyr::full_join(ward_occupancy, occupancy_data)
+      
+      print(ward_occupancy)
+      
+      # ward_occupancy_type_A <- ward_occupancy %>%
+      #   dplyr::filter(key == "Ward_Occupancy_A")
+      # print(ward_occupancy_type_A)
+      # 
+      # ward_occupancy_type_B <- ward_occupancy %>%
+      #   dplyr::filter(key == "Ward_Occupancy_B")
+      # print(ward_occupancy_type_B)
+      # 
+      # ward_occupancy_type_C <- ward_occupancy %>%
+      #   dplyr::filter(key == "Ward_Occupancy_C")
+      ward_occupancy_types <- ward_occupancy 
+      # %>% 
+      #   dplyr::filter(key == "Ward_Occupancy_A" |key == "Ward_Occupancy_B" |key == "Ward_Occupancy_C")
+      ward_occupancy_total <- ward_occupancy %>% 
+        dplyr::filter(key == "Ward_Occupancy_total")
+      
+      ggplot(data = ward_occupancy, aes(y = server, x = time, fill = key, group = key)) + #group = key
+        #data = ward_occupancy_types, aes(y = percentage, x = time, fill = key )
+        ##facets
+        geom_area() + #aes(alpha=0.6 , size=1, colour="black")
+        #facet_wrap("key")  +
+        
+        # geom_area(data = ward_occupancy_types, aes(y = server, x = time, fill = key)) +
+        # geom_step(data = occupancy_data, aes(y = server,x = time)) +
+        #geom_col(data = ward_occupancy, aes(y = server, x = time, color = key, group = key)) +
+        # geom_area(data = ward_occupancy_type_A, aes(y = server, x = time), color = "blue") +
+        # geom_area(data = ward_occupancy_type_B, aes(y = server, x = time), color =  "green") +
+        # geom_area(data = ward_occupancy_type_C, aes(y = server, x = time), color = "pink") +
+        #geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
+        
         guides(color=FALSE) +
-        labs(x = "Time", y = "Bed Occupancy", title = "Bed Occupancy in the Ward") + 
-        theme_bw(base_size = 20)
+        labs(x = "Time", y = "Bed Occupancy", title = "Bed Occupancy in the Ward per Type") +
+        theme_bw(base_size = 20) +
+        theme(legend.position = "bottom", plot.margin = unit(c(0.3,0.3,0.3,0.3), "cm"))
+              
+              # legend.key.size = unit(0.3, "cm"),
+              # legend.title = element_text(size = 10),
+              # legend.text = element_text(size = 10),
+              #)
+      #+theme_bw()
         
     } else {
       ggplot(occupancy_data, aes(y = server,x = time)) + geom_line() + 
@@ -723,6 +794,13 @@ shinyServer(function(input, output, session) {
       # turn off variability for player A/1
       updateSwitchInput(session, "a_variability", value = FALSE)
       updateSwitchInput(session, "b_variability", value = TRUE)
+      
+      updateSliderInput(session, "mean_inter_arrival_a", value = 5)
+      updateSliderInput(session, "mean_inter_arrival_b", value = 5)
+      updateSliderInput(session, "mean_inter_arrival_c", value = 5)
+      updateSliderInput(session, "mean_service_rate_a", value = 5)
+      updateSliderInput(session, "mean_service_rate_b", value = 5)
+      updateSliderInput(session, "mean_service_rate_c", value = 5)
       #select block scheduling for both
       updateRadioGroupButtons(session, "a_policy", selected = 2)
       updateRadioGroupButtons(session, "b_policy", selected = 2)   
@@ -797,6 +875,66 @@ shinyServer(function(input, output, session) {
       init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
                                    "b_init_schedule" = b_init_schedule)
       
+    } else if(input$scenario == "Impact on Ward") {
+      # turn on variability for all of them
+      updateSwitchInput(session, "a_variability", value = TRUE)
+      updateSwitchInput(session, "b_variability", value = TRUE)
+      #select for both the block policy
+      updateRadioGroupButtons(session, "a_policy", selected = 2)
+      updateRadioGroupButtons(session, "b_policy", selected = 2)
+      # Adjust genreal settings
+      updateNumericInput(session, "seed_value", value = 10)
+      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "warmup_period", value = 100)
+      #update schedule of player b because it follows mixed policy
+      schedule_edits_b <- data.frame(row = c(1,2,3,
+                                           1,2,3,
+                                           1,2,3,
+                                           1,2,3),
+                                   col = c(2,2,2,
+                                           3,3,3,
+                                           4,4,4,
+                                           5,5,5), 
+                                   value = c("Type A","Type A","Type A",
+                                             "Type B","Type B","Type B",
+                                             "Type C", "Type C","Type C",
+                                             "Type A","Type A","Type A")
+      )
+      
+      schedule_edits_a <- data.frame(row = c(1,2,3,
+                                             1,2,3,
+                                             1,2,3,
+                                             1,2,3),
+                                     col = c(2,2,2,
+                                             3,3,3,
+                                             4,4,4,
+                                             5,5,5), 
+                                     value = c("Type B","Type B","Type B",
+                                               "Type C", "Type C","Type C",
+                                               "Type A","Type A","Type A",
+                                               "Type B","Type B","Type B")
+      )
+      b_init_schedule <<- editData(b_init_schedule,schedule_edits_b)
+      print(b_init_schedule)
+      output$b_input_schedule = renderDT(
+        b_init_schedule,
+        editable = "cell",
+        autoHideNavigation = TRUE,
+        options = list(dom = 't'),
+        class = "cell-border stripe"
+      )
+      
+      a_init_schedule <<- editData(a_init_schedule,schedule_edits_a)
+      print(a_init_schedule)
+      output$a_input_schedule = renderDT(
+        a_init_schedule,
+        editable = "cell",
+        autoHideNavigation = TRUE,
+        options = list(dom = 't'),
+        class = "cell-border stripe"
+      )
+      init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
+                                   "b_init_schedule" = b_init_schedule)
     }
       
       
@@ -909,6 +1047,9 @@ shinyServer(function(input, output, session) {
     #
     output$a_bedOccupancy <- renderPlot(plot_occupancy(sim_a(), "ward"))
     output$b_bedOccupancy <- renderPlot(plot_occupancy(sim_b(), "ward"))
+    
+    output$a_bedOccupancy_total <- renderPlot(plot_ward_occupancy(sim_a()))
+    output$b_bedOccupancy_total <- renderPlot(plot_ward_occupancy(sim_b()))
     #
     #
     output$a_idleTime <- renderPlot(plot_idle_time(sim_a()))
