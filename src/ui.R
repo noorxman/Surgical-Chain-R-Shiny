@@ -44,7 +44,7 @@ render_operator_inputs_type <- function (prefix) {
                                     value = 5)
                     ),
              column(6, sliderInput(paste0("mean_service_rate_", prefix),paste0("Mean Service Rate of Type ", prefix, ":" ),
-                                  min = 1,
+                                  min = 4,
                                   max = 30,
                                   value = 5)
              )
@@ -194,8 +194,8 @@ navbarPage(title = "Navigation Bar",theme = light,
                               tags$h1("OR Appointment Scheduling"),
                               fluidRow(
                                   column(10, 
-                                         p("This is a serious game about the appointment scheduling of elective patients. The game shows off the effects different scheduling policys like 'Open', 'Block' and 'Modified Block' can have on the performance of the Operating Room, the access times of patients, and the Ward.
-                                           Play this game with two players and see who can create the best schedule! If you are only one Player explore the different policys and schedules side by side!")
+                                         p("This is a serious game about the appointment scheduling of elective patients. The game shows off the effects different scheduling policies like 'Open', 'Block' and 'Modified Block' can have on the performance of the Operating Room, the access times of patients, and the Ward.
+                                           Play this game with two players and see who can create the best schedule! If you are only one Player, explore the different policies and schedules side by side or try out a scenario!")
                                          ),
                                   column(2, offset = 10, 
                                          switchInput(
@@ -227,8 +227,8 @@ navbarPage(title = "Navigation Bar",theme = light,
                                 column(4,
                                        pickerInput(
                                            inputId = "scenario",
-                                           label = tags$b("Choose a Scenario to explore learning goals"), 
-                                           choices = c("Impact of Variability", "Open vs Block Scheduling",
+                                           label = tags$b("Choose a Scenario to explore the learning goals"), 
+                                           choices = c("Impact of Variability", "Block vs Open Scheduling",
                                                        "Block vs Mixed Block Scheduling", "Open vs Mixed Block Scheduling"),
                                            options = list(
                                                title = "Scenario")
@@ -264,7 +264,7 @@ navbarPage(title = "Navigation Bar",theme = light,
            tabPanel("Operators Page",
                     fluidPage(
                         tags$h1("OR Appointment Scheduling"),
-                        p("Here you can change the inputs of the simulation to create a new challenging enviroment!"),
+                        p("Here you can change the inputs of the simulation to create a new challenging environment!"),
                         hr(),
                         fluidRow(column(6,tags$h3("Arrival Rates")), column(6, tags$h3("Service Rates"))),
                         hr(),

@@ -71,9 +71,9 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
     inter_arrival_rate_c  = 1/mean_inter_arrival_c
     # 3 Parameter log normal distribuition of service times with mean 5 and
     # shift parameter defined by service rate
-    service_rate_a  = mean_service_rate_a - 5
-    service_rate_b  = mean_service_rate_b - 5
-    service_rate_c  = mean_service_rate_c - 5
+    service_rate_a  = mean_service_rate_a #- 5
+    service_rate_b  = mean_service_rate_b #- 5
+    service_rate_c  = mean_service_rate_c #- 5
     #Standart deviations based on coefficient of variation
     if(variability == FALSE) {
       service_st_dev_a = 1
@@ -263,11 +263,11 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         seize_selected() %>%
         timeout(function () {
                 if (get_attribute(hospital, "type") == 1) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  log(service_st_dev_a) , threshold = service_rate_a)
+                    rlnorm3(1, meanlog = log(service_rate_a), sdlog =  log(service_st_dev_a) )#, threshold = service_rate_a)
                 } else if(get_attribute(hospital, "type") == 2) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  log(service_st_dev_b) , threshold = service_rate_b)
-                } else if(get_attribute(hosptial, "type") == 3) {
-                    rlnorm3(1, meanlog = log(5), sdlog =  log(service_st_dev_c) , threshold = service_rate_c) #rate used: 0.4
+                    rlnorm3(1, meanlog = log(service_rate_b), sdlog =  log(service_st_dev_b) )#, threshold = service_rate_b)
+                } else if(get_attribute(hospital, "type") == 3) {
+                    rlnorm3(1, meanlog = log(service_rate_c), sdlog =  log(service_st_dev_c) )#, threshold = service_rate_c) #rate used: 0.4
                 }
             }
         ) %>%
@@ -300,9 +300,29 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         log_( function () paste0("LEAVING ", get_selected(hospital))) %>%
         log_("going to WARD") %>%
         #set_capacity("ward", 1, mod = "+") %>%
+        set_global(keys = 
+                     function() {
+                       if(get_attribute(hospital, "type") == 1) {
+                         return("Ward_Occupancy_A")
+                       }else if(get_attribute(hospital, "type") == 2){
+                         return("Ward_Occupancy_B")
+                       } else if(get_attribute(hospital, "type") == 3) {
+                         return("Ward_Occupancy_C")
+                       }
+                     }, values = 1, mod = "+") %>%
         seize("ward") %>%
         timeout(4) %>%
-        release("ward") #%>%
+        release("ward") %>%
+        set_global(keys = 
+                   function() {
+                     if(get_attribute(hospital,"type") == 1) {
+                       return("Ward_Occupancy_A")
+                     }else if(get_attribute(hospital, "type") == 2){
+                       return("Ward_Occupancy_B")
+                     } else if(get_attribute(hospital, "type") == 3) {
+                       return("Ward_Occupancy_C")
+                     }
+                   }, values = -1, mod = "+")
         #set_capacity("ward", -1, mod = "+") #%>%log_("Leaving WARD")
         
     
@@ -454,13 +474,16 @@ simulate_hospital <- function(init_schedule, policy, mean_inter_arrival_a = 5,
         join(patients_path)
     
     patients_path_c <- trajectory("patients_path_c") %>%
-      set_attribute(keys = "type",values = 2) %>%
+      set_attribute(keys = "type",values = 3) %>%
       join(patients_path)
     
     
     hospital %>%
         add_resource(name = "waiting_list", capacity = Inf) %>%
-        add_resource(name = "ward", capacity = ward_capacity, queue_size = 0)
+        add_resource(name = "ward", capacity = ward_capacity, queue_size = 0) %>%
+        add_global("Ward_Occupancy_A", 0) %>%
+        add_global("Ward_Occupancy_B", 0) %>%
+        add_global("Ward_Occupancy_C", 0) 
     
     for (i in seq(number_or)) {
         hospital %>%
@@ -556,6 +579,7 @@ plot_occupancy <- function(simulation, resource_type) {
         dplyr::filter(resource == resource_type)
     if(resource_type == "ward") {
       print(occupancy_data)
+      print(get_mon_attributes(simulation))
       ggplot(occupancy_data, aes(y = server,x = time)) + geom_line() +
         geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
         guides(color=FALSE) +
@@ -637,16 +661,16 @@ shinyServer(function(input, output, session) {
       if(input$a_policy == 1) {
         sendSweetAlert(session,
                        title = "Open Scheduling Policy",
-                       text = "For the open scheduling policy the given schedule is not regarded, instead all operating rooms are variably allocated for every surgery type",
+                       text = "The open scheduling policy does not take into account the given schedule. It schedules the patients as they arrive independently of their type in the next free operating room.",
                        type = "info",
                        html = TRUE)
       } else if(input$a_policy == 3) {
         sendSweetAlert(session,
-                       title = "Modified Block Scheduling Policy",
+                       title = "Mixed Block Scheduling Policy",
                        text = tags$div(
-                         "This policy allocates the Operating Room 1 with the open scheduling policy while the other OR's follow the block policy.",
+                         "This policy allocates the Operating Room 1 with the open scheduling policy while the other OR's follow the block scheduling policy.",
                          tags$br(),
-                         "Please adjust the schedule such that the surgery types are allocated on Operting Room 2 and 3!"
+                         "Please adjust the schedule such that the surgery types are allocated on Operating Room 2 and 3!"
                        ),
                        type = "info",
                        html = TRUE)
@@ -660,16 +684,16 @@ shinyServer(function(input, output, session) {
       if(input$b_policy == 1) {
         sendSweetAlert(session,
                        title = "Open Scheduling Policy",
-                       text = "For the open scheduling policy the given schedule is not regarded, instead all operating rooms are variably allocated for every surgery type",
+                       text = "The open scheduling policy does not take into account the given schedule. It schedules the patients as they arrive independently of their type in one operating room.",
                        type = "info",
                        html = TRUE)
       } else if(input$b_policy == 3) {
         sendSweetAlert(session,
                        title = "Modified Block Scheduling Policy",
                        text = tags$div(
-                         "This policy allocates the Operating Room 1 with the open scheduling policy while the other OR's follow the block policy.",
+                         "This policy allocates the Operating Room 1 with the open scheduling policy while the other OR's follow the block scheduling policy.",
                          tags$br(),
-                         "Please adjust the schedule such that the surgery types are allocated on Operting Room 2 and 3!"
+                         "Please adjust the schedule such that the surgery types are allocated on Operating Room 2 and 3!"
                        ),
                        type = "info",
                        html = TRUE)
@@ -706,7 +730,7 @@ shinyServer(function(input, output, session) {
       updateNumericInput(session, "seed_value", value = 5)
       updateNumericInput(session, "run_time", value = 300)
       updateNumericInput(session, "warmup_period", value = 100)
-    } else if(input$scenario == "Open vs Block Scheduling"){
+    } else if(input$scenario == "Block vs Open Scheduling"){
       # turn on variability for all of them
       updateSwitchInput(session, "a_variability", value = TRUE)
       updateSwitchInput(session, "b_variability", value = TRUE)
@@ -729,9 +753,9 @@ shinyServer(function(input, output, session) {
       updateNumericInput(session, "run_time", value = 300)
       updateNumericInput(session, "warmup_period", value = 100)
       #update schedule of player b because it follows mixed policy
-      schedule_edits <- data.frame(row = c(2,2,3),
-                                    col = c(2,3,5), 
-                                    value = c("Type A","Type A","Type A")
+      schedule_edits <- data.frame(row = c(2,2,3,2),
+                                    col = c(2,3,5,5), 
+                                    value = c("Type A","Type A","Type A","Type C")
                                    )
       b_init_schedule <<- editData(b_init_schedule,schedule_edits)
       print(b_init_schedule)
@@ -757,9 +781,9 @@ shinyServer(function(input, output, session) {
       updateNumericInput(session, "run_time", value = 300)
       updateNumericInput(session, "warmup_period", value = 100)
       #update schedule of player b because it follows mixed policy
-      schedule_edits <- data.frame(row = c(2,2,3),
-                                   col = c(2,3,5), 
-                                   value = c("Type A","Type A","Type A")
+      schedule_edits <- data.frame(row = c(2,2,3,2,3),
+                                   col = c(2,3,5,5,2), 
+                                   value = c("Type A","Type A","Type A","Type C", "Type B")
       )
       b_init_schedule <<- editData(b_init_schedule,schedule_edits)
       print(b_init_schedule)
