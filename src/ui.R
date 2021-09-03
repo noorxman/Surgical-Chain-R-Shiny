@@ -178,7 +178,7 @@ renderOutputs <- function(prefix) {
                         br(),
                         plotOutput( paste0(prefix, "_", "bedOccupancy_total")),
                         br(),
-                        plotOutput( paste0(prefix, "_", "bedOccupancy")))),
+                        plotOutput(paste0(prefix, "_", "bedOccupancy")))),
         br(),
         fluidRow(column(12,tags$h4("Idle time per Sugical Speciality"),
                         br(),

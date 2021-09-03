@@ -14,6 +14,8 @@ library(dplyr)
 library(simmer)
 library(ggplot2)
 library(EnvStats)
+library(viridis)
+
 
 #paramNames <- c("init_schedule", "policy", "number_or", "inter_arrival_rate_a",
                 # "inter_arrival_rate_b", "inter_arrival_rate_c", "service_rate", "run_time")
@@ -597,6 +599,9 @@ plot_occupancy <- function(simulation, resource_type) {
     print(occupancy_data)
     
     if(resource_type == "ward") {
+      # if (input$scenario == "Impact of Variability") {
+      #   
+      # }
       occupancy_data <- occupancy_data %>% 
         dplyr::select(time, resource, server) %>%
         dplyr::rename(key = resource)
@@ -616,41 +621,48 @@ plot_occupancy <- function(simulation, resource_type) {
       
       print(ward_occupancy)
       
-      # ward_occupancy_type_A <- ward_occupancy %>%
-      #   dplyr::filter(key == "Ward_Occupancy_A")
-      # print(ward_occupancy_type_A)
-      # 
-      # ward_occupancy_type_B <- ward_occupancy %>%
-      #   dplyr::filter(key == "Ward_Occupancy_B")
-      # print(ward_occupancy_type_B)
-      # 
-      # ward_occupancy_type_C <- ward_occupancy %>%
-      #   dplyr::filter(key == "Ward_Occupancy_C")
+      ward_occupancy_type_A <- ward_occupancy %>%
+        dplyr::filter(key == "Ward_Occupancy_A")
+      print(ward_occupancy_type_A)
+
+      ward_occupancy_type_B <- ward_occupancy %>%
+        dplyr::filter(key == "Ward_Occupancy_B")
+      print(ward_occupancy_type_B)
+
+      ward_occupancy_type_C <- ward_occupancy %>%
+        dplyr::filter(key == "Ward_Occupancy_C")
       ward_occupancy_types <- ward_occupancy 
       # %>% 
       #   dplyr::filter(key == "Ward_Occupancy_A" |key == "Ward_Occupancy_B" |key == "Ward_Occupancy_C")
       ward_occupancy_total <- ward_occupancy %>% 
         dplyr::filter(key == "Ward_Occupancy_total")
       
-      ggplot(data = ward_occupancy, aes(y = server, x = time, fill = key, group = key)) + #group = key
+     
+      
+      ggplot(ward_occupancy, aes(y = server, x = time)) + #group = key
         #data = ward_occupancy_types, aes(y = percentage, x = time, fill = key )
         ##facets
-        geom_area() + #aes(alpha=0.6 , size=1, colour="black")
+        #geom_area() + #aes(alpha=0.6 , size=1, colour="black")
         #facet_wrap("key")  +
         
         # geom_area(data = ward_occupancy_types, aes(y = server, x = time, fill = key)) +
         # geom_step(data = occupancy_data, aes(y = server,x = time)) +
         #geom_col(data = ward_occupancy, aes(y = server, x = time, color = key, group = key)) +
-        # geom_area(data = ward_occupancy_type_A, aes(y = server, x = time), color = "blue") +
-        # geom_area(data = ward_occupancy_type_B, aes(y = server, x = time), color =  "green") +
-        # geom_area(data = ward_occupancy_type_C, aes(y = server, x = time), color = "pink") +
+        
+        geom_area(data = ward_occupancy_type_A, aes(y = server, x = time), fill = "burlywood") + #fill = "blue"
+        geom_area(data = ward_occupancy_type_B, aes(y = server, x = time), fill = "cadetblue") + #fill =  "green"
+        geom_area(data = ward_occupancy_type_C, aes(y = server, x = time), fill = "brown" ) + #fill = "red"
+        
         #geom_abline(aes(intercept = ward_capacity, slope = 0, color = "red")) +
         
-        guides(color=FALSE) +
-        labs(x = "Time", y = "Bed Occupancy", title = "Bed Occupancy in the Ward per Type") +
-        theme_bw(base_size = 20) +
+        #guides(color=FALSE) +
+        labs(x = "Time", y = "Bed Occupancy", title = "Bed Occupancy in the Ward per Type",
+             color = "key") +
+        theme_bw(base_size = 20) + 
         theme(legend.position = "bottom", plot.margin = unit(c(0.3,0.3,0.3,0.3), "cm"))
               
+      
+      
               # legend.key.size = unit(0.3, "cm"),
               # legend.title = element_text(size = 10),
               # legend.text = element_text(size = 10),
@@ -828,17 +840,26 @@ shinyServer(function(input, output, session) {
       updateRadioGroupButtons(session, "b_policy", selected = 3)
       # Adjust genreal settings
       updateNumericInput(session, "seed_value", value = 5)
-      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "run_time", value = 400)
       updateNumericInput(session, "warmup_period", value = 100)
       #update schedule of player b because it follows mixed policy
-      schedule_edits <- data.frame(row = c(2,2,3,2),
-                                    col = c(2,3,5,5), 
-                                    value = c("Type A","Type A","Type A","Type C")
+      schedule_edits <- data.frame(row = c(3,3),
+                                    col = c(4,5), 
+                                    value = c("Type A","Type A")
                                    )
       b_init_schedule <<- editData(b_init_schedule,schedule_edits)
       print(b_init_schedule)
       output$b_input_schedule = renderDT(
         b_init_schedule,
+        editable = "cell",
+        autoHideNavigation = TRUE,
+        options = list(dom = 't'),
+        class = "cell-border stripe"
+      )
+      a_init_schedule <<- editData(a_init_schedule,schedule_edits)
+      print(a_init_schedule)
+      output$a_input_schedule = renderDT(
+        a_init_schedule,
         editable = "cell",
         autoHideNavigation = TRUE,
         options = list(dom = 't'),
@@ -856,7 +877,7 @@ shinyServer(function(input, output, session) {
       updateRadioGroupButtons(session, "b_policy", selected = 3)
       # Adjust genreal settings
       updateNumericInput(session, "seed_value", value = 5)
-      updateNumericInput(session, "run_time", value = 300)
+      updateNumericInput(session, "run_time", value = 400)
       updateNumericInput(session, "warmup_period", value = 100)
       #update schedule of player b because it follows mixed policy
       schedule_edits <- data.frame(row = c(2,2,3,2,3),
@@ -872,6 +893,7 @@ shinyServer(function(input, output, session) {
         options = list(dom = 't'),
         class = "cell-border stripe"
       )
+      
       init_schedules_list <<- list("a_init_schedule" = a_init_schedule,
                                    "b_init_schedule" = b_init_schedule)
       
