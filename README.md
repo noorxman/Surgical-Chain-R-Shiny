@@ -1,5 +1,5 @@
 # Surgical-Chain-R-Shiny
-This is an educational tool, developed in R Shiny and the discrete event simulation package R Simmer, with the goal of teaching the effects different appointment scheduling policies have on the performance of an operating room at a hospital. The tool is accesible online as a [shiny application](https://noormansour.shinyapps.io/Appointment_Scheduling_Simulation_Game/).
+This is an educational tool, developed in R Shiny and the discrete event simulation package R Simmer, with the goal of teaching the effects different appointment scheduling policies have on the performance of an operating room at a hospital. The tool aims to present the underlying operations research principles to a non-technical audience and is accesible online as a [shiny application](https://noormansour.shinyapps.io/Appointment_Scheduling_Simulation_Game/).
 
 <pre>
 src/  
